@@ -101,7 +101,8 @@ public:
 		const std::vector<CameraModel> & models,
 		const std::vector<StereoCameraModel> & stereoModels);
 	void updateDepthImage(int nodeId, const cv::Mat & image);
-	void updateLaserScan(int nodeId, const LaserScan & scan);
+	void updateLaserScan(int nodeId, const rtabmap::LaserScan & scan);
+	void updatePointCloud2(int nodeId, const rtabmap::PointCloud2 & cloud);
 
 public:
 	void addInfoAfterRun(int stMemSize, int lastSignAdded, int processMemUsed, int databaseMemUsed, int dictionarySize, const ParametersMap & parameters) const;
@@ -145,6 +146,7 @@ public:
 	long getCalibrationsMemoryUsed() const;
 	long getGridsMemoryUsed() const;
 	long getLaserScansMemoryUsed() const;
+	long getPointCloud2MemoryUsed() const;
 	long getUserDataMemoryUsed() const;
 	long getWordsMemoryUsed() const;
 	long getFeaturesMemoryUsed() const;
@@ -168,11 +170,12 @@ public:
 	void loadWords(const std::set<int> & wordIds, std::list<VisualWord *> & vws); // returned words must be freed after usage
 
 	// Specific queries...
-	void loadNodeData(Signature * signature, bool images = true, bool scan = true, bool userData = true, bool occupancyGrid = true) const;
-	void loadNodeData(std::list<Signature *> & signatures, bool images = true, bool scan = true, bool userData = true, bool occupancyGrid = true) const;
-	void getNodeData(int signatureId, SensorData & data, bool images = true, bool scan = true, bool userData = true, bool occupancyGrid = true) const;
+	void loadNodeData(Signature * signature, bool images = true, bool scan = true, bool userData = true, bool pointCloud2 = false, bool occupancyGrid = true) const;
+	void loadNodeData(std::list<Signature *> & signatures, bool images = true, bool scan = true, bool userData = true, bool pointCloud2 = false, bool occupancyGrid = true) const;
+	void getNodeData(int signatureId, SensorData & data, bool images = true, bool scan = true, bool userData = true, bool pointCloud2 = false, bool occupancyGrid = true) const;
 	bool getCalibration(int signatureId, std::vector<CameraModel> & models, std::vector<StereoCameraModel> & stereoModels) const;
-	bool getLaserScanInfo(int signatureId, LaserScan & info) const;
+	bool getLaserScanInfo(int signatureId, rtabmap::LaserScan & info) const;
+	bool getPointCloud2Info(int signatureId, rtabmap::PointCloud2 & info) const;
 	bool getNodeInfo(int signatureId, Transform & pose, int & mapId, int & weight, std::string & label, double & stamp, Transform & groundTruthPose, std::vector<float> & velocity, GPS & gps, EnvSensors & sensors) const;
 	void loadLinks(int signatureId, std::multimap<int, Link> & links, Link::Type type = Link::kUndef) const;
 	void getWeight(int signatureId, int & weight) const;
@@ -202,6 +205,7 @@ protected:
 	virtual long getCalibrationsMemoryUsedQuery() const = 0;
 	virtual long getGridsMemoryUsedQuery() const = 0;
 	virtual long getLaserScansMemoryUsedQuery() const = 0;
+	virtual long getPointCloud2MemoryUsedQuery() const = 0;
 	virtual long getUserDataMemoryUsedQuery() const = 0;
 	virtual long getWordsMemoryUsedQuery() const = 0;
 	virtual long getFeaturesMemoryUsedQuery() const = 0;
@@ -246,7 +250,11 @@ protected:
 
 	virtual void updateLaserScanQuery(
 			int nodeId,
-			const LaserScan & scan) const = 0;
+			const rtabmap::LaserScan & scan) const = 0;
+
+	virtual void updatePointCloud2Query(
+			int nodeId,
+			const rtabmap::PointCloud2 & cloud) const = 0;			
 
 	virtual void addStatisticsQuery(const Statistics & statistics, bool saveWmState) const = 0;
 	virtual void savePreviewImageQuery(const cv::Mat & image) const = 0;
@@ -280,9 +288,10 @@ protected:
 	virtual void loadWordsQuery(const std::set<int> & wordIds, std::list<VisualWord *> & vws) const = 0;
 	virtual void loadLinksQuery(int signatureId, std::multimap<int, Link> & links, Link::Type type = Link::kUndef) const = 0;
 
-	virtual void loadNodeDataQuery(std::list<Signature *> & signatures, bool images=true, bool scan=true, bool userData=true, bool occupancyGrid=true) const = 0;
+	virtual void loadNodeDataQuery(std::list<Signature *> & signatures, bool images=true, bool scan=true, bool userData=true, bool pointCloud2=false, bool occupancyGrid=true) const = 0;
 	virtual bool getCalibrationQuery(int signatureId, std::vector<CameraModel> & models, std::vector<StereoCameraModel> & stereoModels) const = 0;
-	virtual bool getLaserScanInfoQuery(int signatureId, LaserScan & info) const = 0;
+	virtual bool getLaserScanInfoQuery(int signatureId, rtabmap::LaserScan & info) const = 0;
+	virtual bool getPointCloud2InfoQuery(int signatureId, rtabmap::PointCloud2 & info) const = 0;
 	virtual bool getNodeInfoQuery(int signatureId, Transform & pose, int & mapId, int & weight, std::string & label, double & stamp, Transform & groundTruthPose, std::vector<float> & velocity, GPS & gps, EnvSensors & sensors) const = 0;
 	virtual void getLastNodeIdsQuery(std::set<int> & ids) const = 0;
 	virtual void getAllNodeIdsQuery(std::set<int> & ids, bool ignoreChildren, bool ignoreBadSignatures, bool ignoreIntermediateNodes) const = 0;

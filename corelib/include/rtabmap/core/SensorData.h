@@ -36,6 +36,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <opencv2/core/core.hpp>
 #include <opencv2/features2d/features2d.hpp>
 #include <rtabmap/core/LaserScan.h>
+#include <rtabmap/core/PointCloud2.h>
 #include <rtabmap/core/IMU.h>
 #include <rtabmap/core/GPS.h>
 #include <rtabmap/core/EnvSensor.h>
@@ -88,6 +89,17 @@ public:
 			double stamp = 0.0,
 			const cv::Mat & userData = cv::Mat());
 
+	// RGB-D constructor + laser scan + pointcloud2
+	SensorData(
+			const rtabmap::LaserScan & laserScan,
+			const rtabmap::PointCloud2 & pointCloud2,
+			const cv::Mat & rgb,
+			const cv::Mat & depth,
+			const rtabmap::CameraModel & cameraModel,
+			int id = 0,
+			double stamp = 0.0,
+			const cv::Mat & userData = cv::Mat());			
+
 	// Multi-cameras RGB-D constructor
 	SensorData(
 			const cv::Mat & rgb,
@@ -106,6 +118,17 @@ public:
 			int id = 0,
 			double stamp = 0.0,
 			const cv::Mat & userData = cv::Mat());
+
+	// Multi-cameras RGB-D constructor + laser scan + pointcloud2
+	SensorData(
+			const rtabmap::LaserScan & laserScan,
+			const rtabmap::PointCloud2 & pointCloud2,
+			const cv::Mat & rgb,
+			const cv::Mat & depth,
+			const std::vector<rtabmap::CameraModel> & cameraModels,
+			int id = 0,
+			double stamp = 0.0,
+			const cv::Mat & userData = cv::Mat());			
 
 	// Stereo constructor
 	SensorData(
@@ -126,6 +149,17 @@ public:
 			double stamp = 0.0,
 			const cv::Mat & userData = cv::Mat());
 
+	// Stereo constructor + laser scan + pointcloud2
+	SensorData(
+			const rtabmap::LaserScan & laserScan,
+			const rtabmap::PointCloud2 & pointCloud2,
+			const cv::Mat & left,
+			const cv::Mat & right,
+			const rtabmap::StereoCameraModel & cameraModel,
+			int id = 0,
+			double stamp = 0.0,
+			const cv::Mat & userData = cv::Mat());			
+
 	// Multi-cameras stereo constructor
 	SensorData(
 			const cv::Mat & rgb,
@@ -141,6 +175,17 @@ public:
 			const cv::Mat & rgb,
 			const cv::Mat & depth,
 			const std::vector<StereoCameraModel> & cameraModels,
+			int id = 0,
+			double stamp = 0.0,
+			const cv::Mat & userData = cv::Mat());
+
+	// Multi-cameras stereo constructor + laser scan + pointcloud2
+	SensorData(
+			const rtabmap::LaserScan & laserScan,
+			const rtabmap::PointCloud2 & pointCloud2,
+			const cv::Mat & rgb,
+			const cv::Mat & depth,
+			const std::vector<rtabmap::StereoCameraModel> & cameraModels,
 			int id = 0,
 			double stamp = 0.0,
 			const cv::Mat & userData = cv::Mat());
@@ -162,6 +207,8 @@ public:
 			_depthOrRightCompressed.empty() &&
 			_laserScanRaw.isEmpty() &&
 			_laserScanCompressed.isEmpty() &&
+			_pointCloud2Raw.isEmpty() &&
+			_pointCloud2Compressed.isEmpty() &&			
 			_cameraModels.empty() &&
 			_stereoCameraModels.empty() &&
 			_userDataRaw.empty() &&
@@ -178,11 +225,13 @@ public:
 
 	const cv::Mat & imageCompressed() const {return _imageCompressed;}
 	const cv::Mat & depthOrRightCompressed() const {return _depthOrRightCompressed;}
-	const LaserScan & laserScanCompressed() const {return _laserScanCompressed;}
+	const rtabmap::LaserScan & laserScanCompressed() const {return _laserScanCompressed;}
+	const rtabmap::PointCloud2 & pointCloud2Compressed() const {return _pointCloud2Compressed;}
 
 	const cv::Mat & imageRaw() const {return _imageRaw;}
 	const cv::Mat & depthOrRightRaw() const {return _depthOrRightRaw;}
-	const LaserScan & laserScanRaw() const {return _laserScanRaw;}
+	const rtabmap::LaserScan & laserScanRaw() const {return _laserScanRaw;}
+	const rtabmap::PointCloud2 & pointCloud2Raw() const {return _pointCloud2Raw;}
 
 	/**
 	 * Set image data. Detect automatically if raw or compressed.
@@ -200,6 +249,7 @@ public:
 	 * @param clearPreviousData, clear previous raw and compressed scans before setting the new one.
 	 */
 	void setLaserScan(const LaserScan & laserScan, bool clearPreviousData = true);
+	void setPointCloud2(const rtabmap::PointCloud2 & pointCloud2, bool clearPreviousData = true);
 
 	void setCameraModel(const CameraModel & model) {_cameraModels.clear(); _cameraModels.push_back(model);}
 	void setCameraModels(const std::vector<CameraModel> & models) {_cameraModels = models;}
@@ -223,16 +273,18 @@ public:
 	void uncompressData(
 			cv::Mat * imageRaw,
 			cv::Mat * depthOrRightRaw,
-			LaserScan * laserScanRaw = 0,
+			rtabmap::LaserScan * laserScanRaw = 0,
 			cv::Mat * userDataRaw = 0,
+			rtabmap::PointCloud2 * pointCloud2Raw = 0,			
 			cv::Mat * groundCellsRaw = 0,
 			cv::Mat * obstacleCellsRaw = 0,
 			cv::Mat * emptyCellsRaw = 0);
 	void uncompressDataConst(
 			cv::Mat * imageRaw,
 			cv::Mat * depthOrRightRaw,
-			LaserScan * laserScanRaw = 0,
+			rtabmap::LaserScan * laserScanRaw = 0,
 			cv::Mat * userDataRaw = 0,
+			rtabmap::PointCloud2 * pointCloud2Raw = 0,			
 			cv::Mat * groundCellsRaw = 0,
 			cv::Mat * obstacleCellsRaw = 0,
 			cv::Mat * emptyCellsRaw = 0) const;
@@ -305,12 +357,12 @@ public:
 	 * Clear compressed rgb/depth (left/right) images, compressed laser scan and compressed user data.
 	 * Raw data are kept is set.
 	 */
-	void clearCompressedData(bool images = true, bool scan = true, bool userData = true);
+	void clearCompressedData(bool images = true, bool scan = true, bool userData = true, bool pointCloud2  = true);
 	/**
 	 * Clear raw rgb/depth (left/right) images, raw laser scan and raw user data.
 	 * Compressed data are kept is set.
 	 */
-	void clearRawData(bool images = true, bool scan = true, bool userData = true);
+	void clearRawData(bool images = true, bool scan = true, bool userData = true, bool pointCloud2 = true);
 
 	bool isPointVisibleFromCameras(const cv::Point3f & pt) const; // assuming point is in robot frame
 
@@ -320,11 +372,13 @@ private:
 
 	cv::Mat _imageCompressed;          // compressed image
 	cv::Mat _depthOrRightCompressed;   // compressed image
-	LaserScan _laserScanCompressed;      // compressed data
+	rtabmap::LaserScan _laserScanCompressed;      // compressed data
+	rtabmap::PointCloud2 _pointCloud2Compressed;  // compressed data
 
 	cv::Mat _imageRaw;          // CV_8UC1 or CV_8UC3
 	cv::Mat _depthOrRightRaw;   // depth CV_16UC1 or CV_32FC1, right image CV_8UC1
-	LaserScan _laserScanRaw;
+	rtabmap::LaserScan _laserScanRaw;
+	rtabmap::PointCloud2 _pointCloud2Raw;
 
 	std::vector<CameraModel> _cameraModels;
 	std::vector<StereoCameraModel> _stereoCameraModels;

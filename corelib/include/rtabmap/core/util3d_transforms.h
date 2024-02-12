@@ -35,6 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <pcl/pcl_base.h>
 #include <rtabmap/core/Transform.h>
 #include <rtabmap/core/LaserScan.h>
+#include <rtabmap/core/PointCloud2.h>
 
 namespace rtabmap
 {

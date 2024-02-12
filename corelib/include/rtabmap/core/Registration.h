@@ -59,6 +59,7 @@ public:
 	bool isImageRequired() const;
 	bool isScanRequired() const;
 	bool isUserDataRequired() const;
+	bool isPointCloud2Required() const;
 
 	bool canUseGuess() const;
 
@@ -103,6 +104,7 @@ protected:
 	virtual bool isImageRequiredImpl() const {return false;}
 	virtual bool isScanRequiredImpl() const {return false;}
 	virtual bool isUserDataRequiredImpl() const {return false;}
+	virtual bool isPointCloud2RequiredImpl() const {return false;}
 	virtual bool canUseGuessImpl() const {return false;}
 	virtual int getMinVisualCorrespondencesImpl() const {return 0;}
 	virtual float getMinGeometryCorrespondencesRatioImpl() const {return 0.0f;}

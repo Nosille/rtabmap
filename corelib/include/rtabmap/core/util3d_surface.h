@@ -39,6 +39,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <rtabmap/core/CameraModel.h>
 #include <rtabmap/core/ProgressState.h>
 #include <rtabmap/core/LaserScan.h>
+#include <rtabmap/core/PointCloud2.h>
 #include <rtabmap/core/Version.h>
 #include <set>
 #include <list>

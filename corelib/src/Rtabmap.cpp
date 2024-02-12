@@ -4217,7 +4217,7 @@ bool Rtabmap::process(
 	}
 	if(!_rawDataKept)
 	{
-		_memory->removeRawData(signature->id(), true, !_neighborLinkRefining && !_proximityBySpace, true);
+		_memory->removeRawData(signature->id(), true, !_neighborLinkRefining && !_proximityBySpace, true, true);
 	}
 
 	// Localization mode and saving localization data: save odometry covariance in a prior link
@@ -4550,7 +4550,7 @@ bool Rtabmap::process(
 			std::stringstream stream;
 			for(std::multimap<int, int>::iterator iter=missingIds.begin(); iter!=missingIds.end() && loaded<(int)_maxRepublished; ++iter)
 			{
-				statistics_.addSignatureData(getSignatureCopy(iter->second, true, true, true, true, true, true));
+				statistics_.addSignatureData(getSignatureCopy(iter->second, true, true, true, true, true, true, true));
 				_nodesToRepublish.erase(iter->second);
 				++loaded;
 				stream << iter->second << " ";
@@ -5386,7 +5386,7 @@ void Rtabmap::dumpPrediction() const
 	}
 }
 
-Signature Rtabmap::getSignatureCopy(int id, bool images, bool scan, bool userData, bool occupancyGrid, bool withWords, bool withGlobalDescriptors) const
+Signature Rtabmap::getSignatureCopy(int id, bool images, bool scan, bool userData, bool pointCloud2, bool occupancyGrid, bool withWords, bool withGlobalDescriptors) const
 {
 	Signature s;
 	if(_memory)
@@ -5403,9 +5403,9 @@ Signature Rtabmap::getSignatureCopy(int id, bool images, bool scan, bool userDat
 		_memory->getNodeInfo(id, odomPoseLocal, mapId, weight, label, stamp, groundTruth, velocity, gps, sensors, true);
 		SensorData data;
 		data.setId(id);
-		if(images || scan || userData || occupancyGrid)
+		if(images || scan || userData || pointCloud2 || occupancyGrid)
 		{
-			data = _memory->getNodeData(id, images, scan, userData, occupancyGrid);
+			data = _memory->getNodeData(id, images, scan, userData, pointCloud2, occupancyGrid);
 		}
 		if(!images && withWords)
 		{
@@ -5485,6 +5485,7 @@ void Rtabmap::getGraph(
 		bool withImages,
 		bool withScan,
 		bool withUserData,
+		bool withPointCloud2,
 		bool withGrid,
 		bool withWords,
 		bool withGlobalDescriptors) const
@@ -5534,7 +5535,7 @@ void Rtabmap::getGraph(
 
 			for(std::set<int>::iterator iter = ids.begin(); iter!=ids.end(); ++iter)
 			{
-				signatures->insert(std::make_pair(*iter, getSignatureCopy(*iter, withImages, withScan, withUserData, withGrid, withWords, withGlobalDescriptors)));
+				signatures->insert(std::make_pair(*iter, getSignatureCopy(*iter, withImages, withScan, withUserData, withPointCloud2, withGrid, withWords, withGlobalDescriptors)));
 			}
 		}
 	}
@@ -7101,11 +7102,11 @@ void Rtabmap::createGlobalScanMap()
 	std::map<int, Transform> scanViewpoints;
 	for(std::map<int, Transform>::iterator iter=_optimizedPoses.begin(); iter!=_optimizedPoses.end(); ++iter)
 	{
-		SensorData data = _memory->getNodeData(iter->first, false, true, false, false);
+		SensorData data = _memory->getNodeData(iter->first, false, true, false, false, false);
 		if(!data.laserScanCompressed().empty())
 		{
 			LaserScan scan;
-			data.uncompressDataConst(0, 0, &scan, 0, 0, 0, 0);
+			data.uncompressDataConst(0, 0, &scan, 0, 0, 0, 0, 0);
 			if(!scan.empty())
 			{
 				UDEBUG("Adding scan %d (format=%s, points=%d)", iter->first, scan.formatName().c_str(), scan.size());

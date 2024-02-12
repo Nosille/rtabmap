@@ -143,7 +143,7 @@ public:
 	void deleteLocation(int locationId, std::list<int> * deletedWords = 0);
 	void saveLocationData(int locationId);
 	void removeLink(int idA, int idB);
-	void removeRawData(int id, bool image = true, bool scan = true, bool userData = true);
+	void removeRawData(int id, bool image = true, bool scan = true, bool userData = true, bool pointCloud2 = true);
 
 	//getters
 	const std::map<int, double> & getWorkingMem() const {return _workingMem;}
@@ -198,7 +198,7 @@ public:
 			EnvSensors & sensors,
 			bool lookInDatabase = false) const;
 	cv::Mat getImageCompressed(int signatureId) const;
-	SensorData getNodeData(int locationId, bool images, bool scan, bool userData, bool occupancyGrid) const;
+	SensorData getNodeData(int locationId, bool images, bool scan, bool userData, bool pointCloud2, bool occupancyGrid) const;
 	void getNodeWordsAndGlobalDescriptors(int nodeId,
 			std::multimap<int, int> & words,
 			std::vector<cv::KeyPoint> & wordsKpts,
