@@ -5403,9 +5403,9 @@ Signature Rtabmap::getSignatureCopy(int id, bool images, bool scan, bool userDat
 		_memory->getNodeInfo(id, odomPoseLocal, mapId, weight, label, stamp, groundTruth, velocity, gps, sensors, true);
 		SensorData data;
 		data.setId(id);
-		if(images || scan || userData || pointCloud2 || occupancyGrid)
+		if(images || scan || pointCloud2 || userData || occupancyGrid)
 		{
-			data = _memory->getNodeData(id, images, scan, userData, pointCloud2, occupancyGrid);
+			data = _memory->getNodeData(id, images, scan, pointCloud2, userData, occupancyGrid);
 		}
 		if(!images && withWords)
 		{
@@ -5484,8 +5484,8 @@ void Rtabmap::getGraph(
 		std::map<int, Signature> * signatures,
 		bool withImages,
 		bool withScan,
-		bool withUserData,
 		bool withPointCloud2,
+		bool withUserData,
 		bool withGrid,
 		bool withWords,
 		bool withGlobalDescriptors) const
@@ -5535,7 +5535,7 @@ void Rtabmap::getGraph(
 
 			for(std::set<int>::iterator iter = ids.begin(); iter!=ids.end(); ++iter)
 			{
-				signatures->insert(std::make_pair(*iter, getSignatureCopy(*iter, withImages, withScan, withUserData, withPointCloud2, withGrid, withWords, withGlobalDescriptors)));
+				signatures->insert(std::make_pair(*iter, getSignatureCopy(*iter, withImages, withScan, withPointCloud2, withUserData, withGrid, withWords, withGlobalDescriptors)));
 			}
 		}
 	}

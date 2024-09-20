@@ -51,6 +51,7 @@ ExportDialog::ExportDialog(QWidget * parent) :
 	connect(_ui->checkBox_depth, SIGNAL(stateChanged(int)), this, SIGNAL(configChanged()));
 	connect(_ui->checkBox_depth2d, SIGNAL(stateChanged(int)), this, SIGNAL(configChanged()));
 	connect(_ui->checkBox_odom, SIGNAL(stateChanged(int)), this, SIGNAL(configChanged()));
+	connect(_ui->checkBox_pointCloud2, SIGNAL(stateChanged(int)), this, SIGNAL(configChanged()));
 	connect(_ui->checkBox_userData, SIGNAL(stateChanged(int)), this, SIGNAL(configChanged()));
 
 	_ui->lineEdit_path->setText(QDir::currentPath()+QDir::separator()+"output.db");
@@ -74,6 +75,7 @@ void ExportDialog::saveSettings(QSettings & settings, const QString & group) con
 	settings.setValue("depthExported", this->isDepthExported());
 	settings.setValue("depth2dExported", this->isDepth2dExported());
 	settings.setValue("odomExported", this->isOdomExported());
+	settings.setValue("pointCloud2Exported", this->isPointCloud2Exported());
 	settings.setValue("userDataExported", this->isUserDataExported());
 	if(!group.isEmpty())
 	{
@@ -94,6 +96,7 @@ void ExportDialog::loadSettings(QSettings & settings, const QString & group)
 	_ui->checkBox_depth->setChecked(settings.value("depthExported", this->isDepthExported()).toBool());
 	_ui->checkBox_depth2d->setChecked(settings.value("depth2dExported", this->isDepth2dExported()).toBool());
 	_ui->checkBox_odom->setChecked(settings.value("odomExported", this->isOdomExported()).toBool());
+	_ui->checkBox_pointCloud2->setChecked(settings.value("pointCloud2Exported", this->isPointCloud2Exported()).toBool());
 	_ui->checkBox_userData->setChecked(settings.value("userDataExported", this->isUserDataExported()).toBool());
 	if(!group.isEmpty())
 	{
@@ -110,6 +113,7 @@ void ExportDialog::restoreDefaults()
 	_ui->checkBox_depth->setChecked(true);
 	_ui->checkBox_depth2d->setChecked(true);
 	_ui->checkBox_odom->setChecked(true);
+	_ui->checkBox_pointCloud2->setChecked(false);
 	_ui->checkBox_userData->setChecked(false);
 }
 
@@ -160,6 +164,11 @@ bool ExportDialog::isDepth2dExported() const
 bool ExportDialog::isOdomExported() const
 {
 	return _ui->checkBox_odom->isChecked();
+}
+
+bool ExportDialog::isPointCloud2xported() const
+{
+	return _ui->checkBox_pointCloud2->isChecked();
 }
 
 bool ExportDialog::isUserDataExported() const
