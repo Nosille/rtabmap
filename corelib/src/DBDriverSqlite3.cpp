@@ -2294,7 +2294,7 @@ bool DBDriverSqlite3::getLaserScanInfoQuery(
 
 bool DBDriverSqlite3::getPointCloud2InfoQuery(
 		int signatureId,
-		PointCloud2 & info) const
+		rtabmap::PointCloud2 & info) const
 {
 	bool found = false;
 	if(_ppDb && signatureId)
@@ -2349,7 +2349,7 @@ bool DBDriverSqlite3::getPointCloud2InfoQuery(
 					memcpy(localTransform.data(), dataFloat+6, localTransform.size()*sizeof(float));
 				}
 	
-				info = PointCloud2(cloud, localTransform);
+				info = rtabmap::PointCloud2(cloud, localTransform);
 
 			}
 
