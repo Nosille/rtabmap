@@ -123,6 +123,7 @@ SensorData::SensorData(
 {
 	setRGBDImage(rgb, depth, cameraModel);
 	setLaserScan(laserScan);
+	setPointCloud2(pointCloud2);
 	setUserData(userData);
 }
 
@@ -157,7 +158,6 @@ SensorData::SensorData(
 {
 	setRGBDImage(rgb, depth, cameraModels);
 	setLaserScan(laserScan);
-	setPointCloud2(pointCloud2);
 	setUserData(userData);
 }
 
@@ -215,6 +215,26 @@ SensorData::SensorData(
 	setUserData(userData);
 }
 
+// Stereo constructor + 2d laser scan + PC2
+SensorData::SensorData(
+		const LaserScan & laserScan,
+		const PointCloud2 & pointCloud2,
+		const cv::Mat & left,
+		const cv::Mat & right,
+		const StereoCameraModel & cameraModel,
+		int id,
+		double stamp,
+		const cv::Mat & userData) :
+		_id(id),
+		_stamp(stamp),
+		_cellSize(0.0f)
+{
+	setStereoImage(left, right, cameraModel);
+	setLaserScan(laserScan);
+	setPointCloud2(pointCloud2);
+	setUserData(userData);
+}
+
 // Multi-Stereo constructor
 SensorData::SensorData(
 		const cv::Mat & left,
@@ -246,6 +266,26 @@ SensorData::SensorData(
 {
 	setStereoImage(left, right, cameraModels);
 	setLaserScan(laserScan);
+	setUserData(userData);
+}
+
+// Multi-Stereo constructor + 2d laser scan + PC2
+SensorData::SensorData(
+		const LaserScan & laserScan,
+		const PointCloud2 & pointCloud2,
+		const cv::Mat & left,
+		const cv::Mat & right,
+		const std::vector<StereoCameraModel> & cameraModels,
+		int id,
+		double stamp,
+		const cv::Mat & userData) :
+		_id(id),
+		_stamp(stamp),
+		_cellSize(0.0f)
+{
+	setStereoImage(left, right, cameraModels);
+	setLaserScan(laserScan);
+	setPointCloud2(pointCloud2);
 	setUserData(userData);
 }
 
@@ -495,12 +535,6 @@ void SensorData::setLaserScanRaw(const LaserScan & scan)
 	UASSERT(scan.isEmpty() || !scan.isCompressed());
 	_laserScanRaw = scan;
 }
-void SensorData::setPointCloud2Raw(const rtabmap::PointCloud2 & cloud)
-{
-	UASSERT(cloud.isEmpty() || !cloud.isCompressed());
-	_pointCloud2Raw = cloud;
-}
-
 void SensorData::setUserDataRaw(const cv::Mat & userDataRaw)
 {
 	_userDataRaw = userDataRaw;
@@ -599,8 +633,8 @@ void SensorData::uncompressData()
 	uncompressData(_imageCompressed.empty()?0:&tmpA,
 				_depthOrRightCompressed.empty()?0:&tmpB,
 				_laserScanCompressed.isEmpty()?0:&tmpC,
-				_userDataCompressed.empty()?0:&tmpD,
 				_pointCloud2Compressed.empty()?0:&tmpP,
+				_userDataCompressed.empty()?0:&tmpD,
 				_groundCellsCompressed.empty()?0:&tmpE,
 				_obstacleCellsCompressed.empty()?0:&tmpF,
 				_emptyCellsCompressed.empty()?0:&tmpG);
@@ -749,7 +783,7 @@ void SensorData::uncompressDataConst(
 		rtabmap::CompressionThread ctImage(_imageCompressed, true);
 		rtabmap::CompressionThread ctDepth(_depthOrRightCompressed, true);
 		rtabmap::CompressionThread ctLaserScan(_laserScanCompressed.data(), false);
-		rtabmap::CompressionThread ctPointCloud2(_pointCloud2Compressed, false);
+		// rtabmap::CompressionThread ctPointCloud2(_pointCloud2Compressed, false);
 		rtabmap::CompressionThread ctUserData(_userDataCompressed, false);
 		rtabmap::CompressionThread ctGroundCells(_groundCellsCompressed, false);
 		rtabmap::CompressionThread ctObstacleCells(_obstacleCellsCompressed, false);
@@ -769,11 +803,11 @@ void SensorData::uncompressDataConst(
 			UASSERT(_laserScanCompressed.isCompressed());
 			ctLaserScan.start();
 		}
-		if(pointCloud2Raw && pointCloud2Raw->empty() && !_pointCloud2Compressed.empty())
-		{
-			UASSERT(_pointCloud2Compressed.isCompressed());
-			ctPointCloud2.start();
-		}
+		// if(pointCloud2Raw && pointCloud2Raw->empty() && !_pointCloud2Compressed.empty())
+		// {
+		// 	UASSERT(_pointCloud2Compressed.isCompressed());
+		// 	ctPointCloud2.start();
+		// }
 		if(userDataRaw && userDataRaw->empty() && !_userDataCompressed.empty())
 		{
 			UASSERT(_userDataCompressed.type() == CV_8UC1);
@@ -797,7 +831,7 @@ void SensorData::uncompressDataConst(
 		ctImage.join();
 		ctDepth.join();
 		ctLaserScan.join();
-		ctPointCloud2.join();
+		// ctPointCloud2.join();
 		ctUserData.join();
 		ctGroundCells.join();
 		ctObstacleCells.join();

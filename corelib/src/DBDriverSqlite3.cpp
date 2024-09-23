@@ -1326,7 +1326,7 @@ std::map<int, std::vector<int> > DBDriverSqlite3::getAllStatisticsWmStatesQuery(
 
 void DBDriverSqlite3::loadNodeDataQuery(std::list<Signature *> & signatures, bool images, bool scan, bool pointCloud2, bool userData, bool occupancyGrid) const
 {
-	UDEBUG("load data for %d signatures images=%d, scan=%d, pointCloud2=%d, userData=%d, grid=%d," 
+	UDEBUG("load data for %d signatures images=%d, scan=%d, pointCloud2=%d, userData=%d, grid=%d", 
 			(int)signatures.size(), images?1:0, scan?1:0, pointCloud2?1:0, userData?1:0, occupancyGrid?1:0);
 
 	if(!images && !scan && !pointCloud2 && !userData && !occupancyGrid)

@@ -2877,7 +2877,7 @@ Transform Memory::computeTransform(
 	// load binary data from database if not in RAM (if image is already here, scan and userData should be or they are null)
 	if(((_reextractLoopClosureFeatures && (_registrationPipeline->isImageRequired() || guess.isNull())) && fromS.sensorData().imageCompressed().empty()) ||
 	   (_registrationPipeline->isScanRequired() && fromS.sensorData().imageCompressed().empty() && fromS.sensorData().laserScanCompressed().isEmpty()) ||
-	   (_registrationPipeline->isPointCloud2Required() && fromS.sensorData().imageCompressed().empty() && fromS.sensorData().PointCloud2Compressed().isEmpty()) ||
+	   (_registrationPipeline->isPointCloud2Required() && fromS.sensorData().imageCompressed().empty() && fromS.sensorData().pointCloud2Compressed().isEmpty()) ||
 	   (_registrationPipeline->isUserDataRequired() && fromS.sensorData().imageCompressed().empty() && fromS.sensorData().userDataCompressed().empty()))
 	{
 		fromS.sensorData() = getNodeData(fromS.id(), true, true, true, true, true);
@@ -5731,6 +5731,7 @@ Signature * Memory::createSignature(const SensorData & inputData, const Transfor
 
 	// Filter the laser scan?
 	LaserScan laserScan = data.laserScanRaw();
+	PointCloud2 pointCloud2 = data.pointCloud2Raw();
 	if(!isIntermediateNode && laserScan.size())
 	{
 		if(laserScan.rangeMax() == 0.0f)
@@ -5795,14 +5796,14 @@ Signature * Memory::createSignature(const SensorData & inputData, const Transfor
 		cv::Mat compressedImage;
 		cv::Mat compressedDepth;
 		cv::Mat compressedScan;
-		cv::Mat compressedPointCloud2;
+		// cv::Mat compressedPointCloud2;  //Currently not compressing the pointcloud2 data
 		cv::Mat compressedUserData;
 		if(_compressionParallelized)
 		{
 			rtabmap::CompressionThread ctImage(image, _rgbCompressionFormat);
 			rtabmap::CompressionThread ctDepth(depthOrRightImage, depthOrRightImage.type() == CV_32FC1 || depthOrRightImage.type() == CV_16UC1?std::string(".png"):_rgbCompressionFormat);
 			rtabmap::CompressionThread ctLaserScan(laserScan.data());
-			rtabmap::Compressionthread ctPointCloud2(pointCloud2.data());
+			// rtabmap::CompressionThread ctPointCloud2(pointCloud2.data());
 			rtabmap::CompressionThread ctUserData(data.userDataRaw());
 			if(!image.empty())
 			{
@@ -5816,10 +5817,10 @@ Signature * Memory::createSignature(const SensorData & inputData, const Transfor
 			{
 				ctLaserScan.start();
 			}
-			if(!pointCloud2.isEmpty())
-			{
-				ctPointCloud2.start();
-			}
+			// if(!pointCloud2.isEmpty())
+			// {
+			// 	ctPointCloud2.start();
+			// }
 			if(!data.userDataRaw().empty())
 			{
 				ctUserData.start();
@@ -5827,13 +5828,13 @@ Signature * Memory::createSignature(const SensorData & inputData, const Transfor
 			ctImage.join();
 			ctDepth.join();
 			ctLaserScan.join();
-			ctPointCloud2.join();
+			// ctPointCloud2.join();
 			ctUserData.join();
 
 			compressedImage = ctImage.getCompressedData();
 			compressedDepth = ctDepth.getCompressedData();
 			compressedScan = ctLaserScan.getCompressedData();
-			compressedPointCloud2 = ctPointCloud2.getCompressedData();
+			// compressedPointCloud2 = ctPointCloud2.getCompressedData();
 			compressedUserData = ctUserData.getCompressedData();
 		}
 		else
@@ -5841,7 +5842,7 @@ Signature * Memory::createSignature(const SensorData & inputData, const Transfor
 			compressedImage = compressImage2(image, _rgbCompressionFormat);
 			compressedDepth = compressImage2(depthOrRightImage, depthOrRightImage.type() == CV_32FC1 || depthOrRightImage.type() == CV_16UC1?std::string(".png"):_rgbCompressionFormat);
 			compressedScan = compressData2(laserScan.data());
-			compressedPointCloud2 = compressData2(pointCloud2.data());
+			// compressedPointCloud2 = compressData2(pointCloud2.data());
 			compressedUserData = compressData2(data.userDataRaw());
 		}
 
@@ -5868,7 +5869,8 @@ Signature * Memory::createSignature(const SensorData & inputData, const Transfor
 								laserScan.angleMax(),
 								laserScan.angleIncrement(),
 								laserScan.localTransform()),
-						PointCloud2(compressedPointCloud2,
+						    // PointCloud2(compressedPointCloud2,
+							PointCloud2(pointCloud2.cloud(),
 						        pointCloud2.localTransform()),
 						compressedImage,
 						compressedDepth,
@@ -5891,7 +5893,8 @@ Signature * Memory::createSignature(const SensorData & inputData, const Transfor
 								laserScan.angleMax(),
 								laserScan.angleIncrement(),
 								laserScan.localTransform()),
-						    PointCloud2(compressedPointCloud2,
+						    // PointCloud2(compressedPointCloud2,
+							PointCloud2(pointCloud2.cloud(),
 						        pointCloud2.localTransform()),
 						compressedImage,
 						compressedDepth,
@@ -5909,13 +5912,13 @@ Signature * Memory::createSignature(const SensorData & inputData, const Transfor
 
 		// just compress user data and laser scan (scans can be used for local scan matching)
 		cv::Mat compressedScan;
-		cv::Mat compressedPointCloud2;
+		// cv::Mat compressedPointCloud2;
 		cv::Mat compressedUserData;
 		if(_compressionParallelized)
 		{
 			rtabmap::CompressionThread ctUserData(data.userDataRaw());
 			rtabmap::CompressionThread ctLaserScan(laserScan.data());
-			rtabmap::CompressionThread ctPointCloud2(pointCloud2.data());			
+			// rtabmap::CompressionThread ctPointCloud2(pointCloud2.data());			
 			if(!data.userDataRaw().empty() && !isIntermediateNode)
 			{
 				ctUserData.start();
@@ -5924,21 +5927,21 @@ Signature * Memory::createSignature(const SensorData & inputData, const Transfor
 			{
 				ctLaserScan.start();
 			}
-			if(!pointCloud2.isEmpty() && !isIntermediateNode)
-			{
-				ctPointCloud2.start();
-			}			
+			// if(!pointCloud2.isEmpty() && !isIntermediateNode)
+			// {
+			// 	ctPointCloud2.start();
+			// }			
 			ctUserData.join();
 			ctLaserScan.join();
 
 			compressedScan = ctLaserScan.getCompressedData();
-			compressedPointCloud2 = ctpointCloud2.getCompressedData();
+			// compressedPointCloud2 = ctpointCloud2.getCompressedData();
 			compressedUserData = ctUserData.getCompressedData();
 		}
 		else
 		{
 			compressedScan = compressData2(laserScan.data());
-			compressedPointCloud2 = compressData2(pointCloud2.data());
+			// compressedPointCloud2 = compressData2(pointCloud2.data());
 			compressedUserData = compressData2(data.userDataRaw());
 		}
 
@@ -5965,8 +5968,8 @@ Signature * Memory::createSignature(const SensorData & inputData, const Transfor
 									laserScan.angleMax(),
 									laserScan.angleIncrement(),
 									laserScan.localTransform()),
-								PointCloud2(compressedPointCloud2,
-									pointCloud2.localTransform());
+								PointCloud2(pointCloud2.cloud(),
+									pointCloud2.localTransform()),
 						cv::Mat(),
 						cv::Mat(),
 						stereoCameraModels,
@@ -5988,8 +5991,8 @@ Signature * Memory::createSignature(const SensorData & inputData, const Transfor
 									laserScan.angleMax(),
 									laserScan.angleIncrement(),
 									laserScan.localTransform()),
-								PointCloud2(compressedPointCloud2,
-									pointCloud2.localTransform());
+								PointCloud2(pointCloud2.cloud(),
+									pointCloud2.localTransform()),
 						cv::Mat(),
 						cv::Mat(),
 						cameraModels,

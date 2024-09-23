@@ -1437,6 +1437,7 @@ void DatabaseViewer::exportDatabase()
 							!dialog.isRgbExported()?0:&rgb,
 							!dialog.isDepthExported()?0:&depth,
 							!dialog.isDepth2dExported()?0:&scan,
+							!dialog.isPointCloud2Exported()?0:&pointCloud2,
 							!dialog.isUserDataExported()?0:&userData,
 							0);
 					cv::Mat covariance = cv::Mat::eye(6,6,CV_64FC1);

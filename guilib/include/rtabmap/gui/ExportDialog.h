@@ -57,6 +57,7 @@ public:
 	bool isDepthExported() const;
 	bool isDepth2dExported() const;
 	bool isOdomExported() const;
+	bool isPointCloud2Exported() const;
 	bool isUserDataExported() const;
 
 Q_SIGNALS:
