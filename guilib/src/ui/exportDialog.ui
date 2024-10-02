@@ -160,6 +160,16 @@
     </widget>
    </item>
    <item>
+    <widget class="QCheckBox" name="checkBox_pointCloud2">
+     <property name="text">
+      <string>PointCloud2</string>
+     </property>
+     <property name="checked">
+      <bool>false</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
     <widget class="QCheckBox" name="checkBox_userData">
      <property name="text">
       <string>User data (planned goals)</string>

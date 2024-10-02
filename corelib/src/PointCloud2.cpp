@@ -53,7 +53,6 @@ PointCloud2::PointCloud2(
 		const PointCloud2 & pointcloud,
 		const Transform & localTransform)
 {
-	UASSERT(pointcloud.empty());
 	init(pointcloud.cloud(), localTransform);
 }
 
@@ -61,7 +60,6 @@ PointCloud2::PointCloud2(
 		const pcl::PCLPointCloud2 & cloud,
 		const Transform & localTransform)
 {
-	UASSERT(cloud.data.empty());
 	init(cloud, localTransform);
 }
 
