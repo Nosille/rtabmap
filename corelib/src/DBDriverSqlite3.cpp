@@ -1363,7 +1363,7 @@ void DBDriverSqlite3::loadNodeDataQuery(std::list<Signature *> & signatures, boo
 					fields << ", ";
 				}
 			}
-			if(pointCloud2)
+			if(pointCloud2 && uStrNumCmp(_version, "1.0.0") >= 0)
 			{
 				fields << "pc2_info, pc2_fields, pc2_data";
 				if(userData || occupancyGrid)
@@ -1782,7 +1782,7 @@ void DBDriverSqlite3::loadNodeDataQuery(std::list<Signature *> & signatures, boo
 				}
 
 				Transform pc2LocalTransform = Transform::getIdentity();
-				if(pointCloud2)
+				if(pointCloud2 && uStrNumCmp(_version, "1.0.0") >= 0)
 				{
 					// pc2_info
 					data = sqlite3_column_blob(ppStmt, index);
