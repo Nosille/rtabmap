@@ -6384,7 +6384,7 @@ std::string DBDriverSqlite3::queryStepSensorData() const
 	UASSERT(uStrNumCmp(_version, "0.10.0") >= 0);
 	if(uStrNumCmp(_version, "0.21.1") >= 0)
 	{
-		return "INSERT INTO Data(id, image, depth, calibration, scan_info, scan, pc2_info, pc2_fields, pc2_data, user_data, ground_cells, obstacle_cells, empty_cells, cell_size, view_point_x, view_point_y, view_point_z) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
+		return "INSERT INTO Data(id, image, depth, calibration, scan_info, scan, pc2_info, pc2_fields, pc2_data, user_data, ground_cells, obstacle_cells, empty_cells, cell_size, view_point_x, view_point_y, view_point_z) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
 	}
 	else if(uStrNumCmp(_version, "0.16.0") >= 0)
 	{
