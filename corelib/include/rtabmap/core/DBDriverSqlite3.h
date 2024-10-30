@@ -146,7 +146,7 @@ protected:
 	virtual void loadWordsQuery(const std::set<int> & wordIds, std::list<VisualWord *> & vws) const;
 	virtual void loadLinksQuery(int signatureId, std::multimap<int, Link> & links, Link::Type type = Link::kUndef) const;
 
-	virtual void loadNodeDataQuery(std::list<Signature *> & signatures, bool images=true, bool scan=true, bool userData=true, bool pointCloud2=false, bool occupancyGrid=true) const;
+	virtual void loadNodeDataQuery(std::list<Signature *> & signatures, bool images=true, bool scan=true, bool pointCloud2=false, bool userData=true, bool occupancyGrid=true) const;
 	virtual bool getCalibrationQuery(int signatureId, std::vector<CameraModel> & models, std::vector<StereoCameraModel> & stereoModels) const;
 	virtual bool getLaserScanInfoQuery(int signatureId, rtabmap::LaserScan & info) const;
 	virtual bool getPointCloud2InfoQuery(int signatureId, rtabmap::PointCloud2 & info) const;

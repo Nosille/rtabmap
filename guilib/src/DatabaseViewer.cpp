@@ -1433,10 +1433,11 @@ void DatabaseViewer::exportDatabase()
 				progressDialog->setMaximumSteps(ids.size());
 				progressDialog->show();
 				progressDialog->setCancelButtonVisible(true);
-				UINFO("Decompress: rgb=%d depth=%d scan=%d userData=%d",
+				UINFO("Decompress: rgb=%d depth=%d scan=%d pointCloud2%d userData=%d",
 						dialog.isRgbExported()?1:0,
 						dialog.isDepthExported()?1:0,
 						dialog.isDepth2dExported()?1:0,
+						dialog.isPointCloud2Exported()?1:0,
 						dialog.isUserDataExported()?1:0);
 
 				for(int i=0; i<ids.size() && !progressDialog->isCanceled(); ++i)
@@ -1447,6 +1448,7 @@ void DatabaseViewer::exportDatabase()
 					dbDriver_->getNodeData(id, data);
 					cv::Mat depth, rgb, userData;
 					LaserScan scan;
+					PointCloud2 pointCloud2;
 					data.uncompressDataConst(
 							!dialog.isRgbExported()?0:&rgb,
 							!dialog.isDepthExported()?0:&depth,
@@ -1469,6 +1471,7 @@ void DatabaseViewer::exportDatabase()
 					{
 						sensorData = rtabmap::SensorData(
 							scan,
+							pointCloud2,
 							rgb,
 							depth,
 							data.cameraModels(),
@@ -1480,6 +1483,7 @@ void DatabaseViewer::exportDatabase()
 					{
 						sensorData = rtabmap::SensorData(
 							scan,
+							pointCloud2,
 							rgb,
 							depth,
 							data.stereoCameraModels(),
@@ -2257,6 +2261,9 @@ void DatabaseViewer::updateInfo()
 			mem = dbDriver_->getLaserScansMemoryUsed();
 			total+=mem;
 			ui_->textEdit_info->append(tr("Scans size:\t\t%1 %2\t%3%").arg(mem>1000000?mem/1000000:mem>1000?mem/1000:mem).arg(mem>1000000?"MB":mem>1000?"KB":"Bytes").arg(dbSize>0?QString::number(double(mem)/double(dbSize)*100.0, 'f', 2 ):"0"));
+			mem = dbDriver_->getPointCloud2MemoryUsed();
+			total+=mem;
+			ui_->textEdit_info->append(tr("PointCloud2 size:\t\t%1 %2\t%3%").arg(mem>1000000?mem/1000000:mem>1000?mem/1000:mem).arg(mem>1000000?"MB":mem>1000?"KB":"Bytes").arg(dbSize>0?QString::number(double(mem)/double(dbSize)*100.0, 'f', 2 ):"0"));
 			mem = dbDriver_->getUserDataMemoryUsed();
 			total+=mem;
 			ui_->textEdit_info->append(tr("User data size:\t%1 %2\t%3%").arg(mem>1000000?mem/1000000:mem>1000?mem/1000:mem).arg(mem>1000000?"MB":mem>1000?"KB":"Bytes").arg(dbSize>0?QString::number(double(mem)/double(dbSize)*100.0, 'f', 2 ):"0"));
@@ -8343,12 +8350,13 @@ void DatabaseViewer::refineConstraint(int from, int to, bool silent)
 		bool reextractVisualFeatures = uStr2Bool(parameters.at(Parameters::kRGBDLoopClosureReextractFeatures()));
 		Registration * reg = Registration::create(parameters);
 		if( reg->isScanRequired() ||
+			reg->isPointCloud2Required() ||
 			reg->isUserDataRequired() ||
 			reextractVisualFeatures ||
 			!silent)
 		{
-			dbDriver_->loadNodeData(fromS, reextractVisualFeatures || !silent || (reg->isScanRequired() && ui_->checkBox_icp_from_depth->isChecked()), reg->isScanRequired() || !silent, reg->isUserDataRequired() || !silent, !silent);
-			dbDriver_->loadNodeData(toS, reextractVisualFeatures || !silent || (reg->isScanRequired() && ui_->checkBox_icp_from_depth->isChecked()), reg->isScanRequired() || !silent, reg->isUserDataRequired() || !silent, !silent);
+			dbDriver_->loadNodeData(fromS, reextractVisualFeatures || !silent || (reg->isScanRequired() && ui_->checkBox_icp_from_depth->isChecked()), reg->isScanRequired() || !silent, reg->isPointCloud2Required() || !silent, reg->isUserDataRequired() || !silent, !silent);
+			dbDriver_->loadNodeData(toS, reextractVisualFeatures || !silent || (reg->isScanRequired() && ui_->checkBox_icp_from_depth->isChecked()), reg->isScanRequired() || !silent, reg->isPointCloud2Required() || !silent, reg->isUserDataRequired() || !silent, !silent);
 		
 			if(!silent)
 			{
@@ -8631,14 +8639,15 @@ bool DatabaseViewer::addConstraint(int from, int to, bool silent, bool silentlyU
 
 		bool reextractVisualFeatures = uStr2Bool(parameters.at(Parameters::kRGBDLoopClosureReextractFeatures()));
 		if(reg->isScanRequired() ||
+			reg->isPointCloud2Required() ||
 			reg->isUserDataRequired() ||
 			reextractVisualFeatures ||
 			!silent)
 		{
 			// Add sensor data to generate features
-			dbDriver_->loadNodeData(fromS, reextractVisualFeatures || !silent || (reg->isScanRequired() && ui_->checkBox_icp_from_depth->isChecked()), reg->isScanRequired() || !silent, reg->isUserDataRequired() || !silent, !silent);
+			dbDriver_->loadNodeData(fromS, reextractVisualFeatures || !silent || (reg->isScanRequired() && ui_->checkBox_icp_from_depth->isChecked()), reg->isScanRequired() || !silent, reg->isPointCloud2Required() || !silent, reg->isUserDataRequired() || !silent, !silent);
 			fromS->sensorData().uncompressData();
-			dbDriver_->loadNodeData(toS, reextractVisualFeatures || !silent || (reg->isScanRequired() && ui_->checkBox_icp_from_depth->isChecked()), reg->isScanRequired() || !silent, reg->isUserDataRequired() || !silent, !silent);
+			dbDriver_->loadNodeData(toS, reextractVisualFeatures || !silent || (reg->isScanRequired() && ui_->checkBox_icp_from_depth->isChecked()), reg->isScanRequired() || !silent, reg->isPointCloud2Required() || !silent, reg->isUserDataRequired() || !silent, !silent);
 			toS->sensorData().uncompressData();
 			if(reextractVisualFeatures)
 			{

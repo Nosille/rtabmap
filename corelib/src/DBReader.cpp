@@ -605,8 +605,9 @@ SensorData DBReader::getNextData(SensorCaptureInfo * info)
 			}
 			data.setLandmarks(landmarks);
 
-			UDEBUG("Laser=%d RGB/Left=%d Depth/Right=%d, Grid=%d, UserData=%d, GlobalPose=%d, GPS=%d, IMU=%d",
+			UDEBUG("Laser=%d PointCloud2=%d RGB/Left=%d Depth/Right=%d, Grid=%d, UserData=%d, GlobalPose=%d, GPS=%d, IMU=%d",
 					data.laserScanRaw().isEmpty()?0:1,
+					data.PointCloud2Raw().isEmpty()?0:1,
 					data.imageRaw().empty()?0:1,
 					data.depthOrRightRaw().empty()?0:1,
 					data.gridCellSize()==0.0f?0:1,

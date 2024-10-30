@@ -274,8 +274,8 @@ public:
 			cv::Mat * imageRaw,
 			cv::Mat * depthOrRightRaw,
 			rtabmap::LaserScan * laserScanRaw = 0,
-			cv::Mat * userDataRaw = 0,
 			rtabmap::PointCloud2 * pointCloud2Raw = 0,			
+			cv::Mat * userDataRaw = 0,
 			cv::Mat * groundCellsRaw = 0,
 			cv::Mat * obstacleCellsRaw = 0,
 			cv::Mat * emptyCellsRaw = 0);
@@ -283,8 +283,8 @@ public:
 			cv::Mat * imageRaw,
 			cv::Mat * depthOrRightRaw,
 			rtabmap::LaserScan * laserScanRaw = 0,
-			cv::Mat * userDataRaw = 0,
 			rtabmap::PointCloud2 * pointCloud2Raw = 0,			
+			cv::Mat * userDataRaw = 0,
 			cv::Mat * groundCellsRaw = 0,
 			cv::Mat * obstacleCellsRaw = 0,
 			cv::Mat * emptyCellsRaw = 0) const;
@@ -357,12 +357,12 @@ public:
 	 * Clear compressed rgb/depth (left/right) images, compressed laser scan and compressed user data.
 	 * Raw data are kept is set.
 	 */
-	void clearCompressedData(bool images = true, bool scan = true, bool userData = true, bool pointCloud2  = true);
+	void clearCompressedData(bool images = true, bool scan = true, bool pointCloud2  = true, bool userData = true);
 	/**
 	 * Clear raw rgb/depth (left/right) images, raw laser scan and raw user data.
 	 * Compressed data are kept is set.
 	 */
-	void clearRawData(bool images = true, bool scan = true, bool userData = true, bool pointCloud2 = true);
+	void clearRawData(bool images = true, bool scan = true, bool pointCloud2 = true, bool userData = true);
 
 	bool isPointVisibleFromCameras(const cv::Point3f & pt) const; // assuming point is in robot frame
 

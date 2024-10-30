@@ -672,14 +672,14 @@ void DBDriver::loadWords(const std::set<int> & wordIds, std::list<VisualWord *> 
 	}
 }
 
-void DBDriver::loadNodeData(Signature * signature, bool images, bool scan, bool userData, bool pointCloud2, bool occupancyGrid) const
+void DBDriver::loadNodeData(Signature * signature, bool images, bool scan, bool pointCloud2, bool userData, bool occupancyGrid) const
 {
 	std::list<Signature *> signatures;
 	signatures.push_back(signature);
-	this->loadNodeData(signatures, images, scan, userData, pointCloud2, occupancyGrid);
+	this->loadNodeData(signatures, images, scan, pointCloud2, userData, occupancyGrid);
 }
 
-void DBDriver::loadNodeData(std::list<Signature *> & signatures, bool images, bool scan, bool userData, bool pointCloud2, bool occupancyGrid) const
+void DBDriver::loadNodeData(std::list<Signature *> & signatures, bool images, bool scan, bool pointCloud2, bool userData, bool occupancyGrid) const
 {
 	// Don't look in the trash, we assume that if we want to load
 	// data of a signature, it is not in thrash! Print an error if so.
@@ -695,14 +695,14 @@ void DBDriver::loadNodeData(std::list<Signature *> & signatures, bool images, bo
 	_trashesMutex.unlock();
 
 	_dbSafeAccessMutex.lock();
-	this->loadNodeDataQuery(signatures, images, scan, userData, pointCloud2, occupancyGrid);
+	this->loadNodeDataQuery(signatures, images, scan, pointCloud2, userData, occupancyGrid);
 	_dbSafeAccessMutex.unlock();
 }
 
 void DBDriver::getNodeData(
 		int signatureId,
 		SensorData & data,
-		bool images, bool scan, bool userData, bool pointCloud2, bool occupancyGrid) const
+		bool images, bool scan, bool pointCloud2, bool userData, bool occupancyGrid) const
 {
 	bool found = false;
 	// look in the trash
@@ -713,8 +713,8 @@ void DBDriver::getNodeData(
 		if((!s->isSaved() ||
 			((!images || !s->sensorData().imageCompressed().empty()) &&
 			 (!scan || !s->sensorData().laserScanCompressed().isEmpty()) &&
-			 (!userData || !s->sensorData().userDataCompressed().empty()) &&
 			 (!pointCloud2 || !s->sensorData().pointCloud2Compressed().isEmpty()) &&
+			 (!userData || !s->sensorData().userDataCompressed().empty()) &&
 			 (!occupancyGrid || s->sensorData().gridCellSize() != 0.0f))))
 		{
 			data = (SensorData)s->sensorData();
@@ -726,13 +726,13 @@ void DBDriver::getNodeData(
 			{
 				data.setLaserScan(rtabmap::LaserScan());
 			}
-			if(!userData)
-			{
-				data.setUserData(cv::Mat());
-			}
 			if(!pointCloud2)
 			{
 				data.setPointCloud2(rtabmap::PointCloud2());
+			}
+			if(!userData)
+			{
+				data.setUserData(cv::Mat());
 			}
 			if(!occupancyGrid)
 			{
@@ -749,7 +749,7 @@ void DBDriver::getNodeData(
 		std::list<Signature *> signatures;
 		Signature tmp(signatureId);
 		signatures.push_back(&tmp);
-		loadNodeDataQuery(signatures, images, scan, userData, occupancyGrid, pointCloud2);
+		loadNodeDataQuery(signatures, images, scan, pointCloud2, userData, occupancyGrid);
 		data = signatures.front()->sensorData();
 		_dbSafeAccessMutex.unlock();
 	}
