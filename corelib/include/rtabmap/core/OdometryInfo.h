@@ -127,7 +127,7 @@ public:
 	// F2M
 	std::multimap<int, cv::KeyPoint> words;
 	std::map<int, cv::Point3f> localMap;
-	LaserScan localScanMap;
+	rtabmap::LaserScan localScanMap;
 
 	// F2F
 	std::vector<cv::Point2f> refCorners;

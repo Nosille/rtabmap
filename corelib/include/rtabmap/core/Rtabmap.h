@@ -181,7 +181,7 @@ public:
 	void rejectLastLoopClosure();
 	void deleteLastLocation();
 	void setOptimizedPoses(const std::map<int, Transform> & poses, const std::multimap<int, Link> & constraints);
-	Signature getSignatureCopy(int id, bool images, bool scan, bool userData, bool occupancyGrid, bool withWords, bool withGlobalDescriptors) const;
+	Signature getSignatureCopy(int id, bool images, bool scan, bool userData, bool pointCloud2, bool occupancyGrid, bool withWords, bool withGlobalDescriptors) const;
 	// Use getGraph() instead with withImages=true, withScan=true, withUserData=true and withGrid=true.
 	RTABMAP_DEPRECATED
 		void get3DMap(std::map<int, Signature> & signatures,
@@ -197,6 +197,7 @@ public:
 			bool withImages = false,
 			bool withScan = false,
 			bool withUserData = false,
+			bool withPointCloud2 = false,
 			bool withGrid = false,
 			bool withWords = true,
 			bool withGlobalDescriptors = true) const;

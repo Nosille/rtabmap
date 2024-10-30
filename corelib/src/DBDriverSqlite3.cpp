@@ -810,6 +810,38 @@ long DBDriverSqlite3::getLaserScansMemoryUsedQuery() const
 	}
 	return size;
 }
+long DBDriverSqlite3::getPointCloud2MemoryUsedQuery() const
+{
+	UDEBUG("");
+	long size = 0L;
+	if(_ppDb)
+	{
+		std::string query;
+		if(uStrNumCmp(_version, "0.21.10") >= 0)
+		{
+			query = "SELECT sum(ifnull(length(pc2_info),0) + ifnull(length(pc2_fields),0) + ifnull(length(pc2_data),0)) from Data;";
+		}
+		else
+		{
+			return size; // no pc2_data
+		}
+
+		int rc = SQLITE_OK;
+		sqlite3_stmt * ppStmt = 0;
+		rc = sqlite3_prepare_v2(_ppDb, query.c_str(), -1, &ppStmt, 0);
+		UASSERT_MSG(rc == SQLITE_OK, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
+		rc = sqlite3_step(ppStmt);
+		if(rc == SQLITE_ROW)
+		{
+			size = sqlite3_column_int64(ppStmt, 0);
+			rc = sqlite3_step(ppStmt);
+		}
+		UASSERT_MSG(rc == SQLITE_DONE, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
+		rc = sqlite3_finalize(ppStmt);
+		UASSERT_MSG(rc == SQLITE_OK, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
+	}
+	return size;
+}
 long DBDriverSqlite3::getUserDataMemoryUsedQuery() const
 {
 	UDEBUG("");
@@ -1292,12 +1324,12 @@ std::map<int, std::vector<int> > DBDriverSqlite3::getAllStatisticsWmStatesQuery(
 	return data;
 }
 
-void DBDriverSqlite3::loadNodeDataQuery(std::list<Signature *> & signatures, bool images, bool scan, bool userData, bool occupancyGrid) const
+void DBDriverSqlite3::loadNodeDataQuery(std::list<Signature *> & signatures, bool images, bool scan, bool userData, bool pointCloud2, bool occupancyGrid) const
 {
-	UDEBUG("load data for %d signatures images=%d scan=%d userData=%d, grid=%d",
-			(int)signatures.size(), images?1:0, scan?1:0, userData?1:0, occupancyGrid?1:0);
+	UDEBUG("load data for %d signatures images=%d scan=%d userData=%d, grid=%d, pointCloud2=%d",
+			(int)signatures.size(), images?1:0, scan?1:0, userData?1:0, occupancyGrid?1:0, pointCloud2?1:0);
 
-	if(!images && !scan && !userData && !occupancyGrid)
+	if(!images && !scan && !userData && !occupancyGrid && !pointCloud2)
 	{
 		UWARN("All requested data fields are false! Nothing loaded...");
 		return;
@@ -1318,7 +1350,7 @@ void DBDriverSqlite3::loadNodeDataQuery(std::list<Signature *> & signatures, boo
 			if(images)
 			{
 				fields << "image, depth, calibration";
-				if(scan || userData || occupancyGrid)
+				if(scan || userData || occupancyGrid || pointCloud2)
 				{
 					fields << ", ";
 				}
@@ -1326,14 +1358,22 @@ void DBDriverSqlite3::loadNodeDataQuery(std::list<Signature *> & signatures, boo
 			if(scan)
 			{
 				fields << "scan_info, scan";
-				if(userData || occupancyGrid)
+				if(userData || occupancyGrid || pointCloud2)
 				{
 					fields << ", ";
 				}
 			}
-			if(userData)
+			if(userData || pointCloud2)
 			{
 				fields << "user_data";
+				if(pointCloud2 || occupancyGrid)
+				{
+					fields << ", ";
+				}
+			}
+			if(pointCloud2)
+			{
+				fields << "pc2_info, pc2_fields, pc2_data";
 				if(occupancyGrid)
 				{
 					fields << ", ";
@@ -1453,6 +1493,7 @@ void DBDriverSqlite3::loadNodeDataQuery(std::list<Signature *> & signatures, boo
 				Transform localTransform = Transform::getIdentity();
 				cv::Mat scanCompressed;
 				cv::Mat userDataCompressed;
+				pcl::PCLPointCloud2 pointCloud2Compressed;
 
 				if(uStrNumCmp(_version, "0.11.10") < 0 || images)
 				{
@@ -1762,6 +1803,44 @@ void DBDriverSqlite3::loadNodeDataQuery(std::list<Signature *> & signatures, boo
 					}
 				}
 
+				Transform pc2LocalTransform = Transform::getIdentity();
+				if(pointCloud2)
+				{
+					// pc2_info
+					data = sqlite3_column_blob(ppStmt, index);
+					dataSize = sqlite3_column_bytes(ppStmt, index++);
+
+					if(dataSize > 0 && data)
+					{
+						float * dataFloat = (float*)data;
+
+						UASSERT(dataSize == (int)((pc2LocalTransform.size()+6)*sizeof(float)));
+						pointCloud2Compressed.height = (int)dataFloat[0];
+						pointCloud2Compressed.width = (int)dataFloat[1];
+						pointCloud2Compressed.point_step = (int)dataFloat[2];
+						pointCloud2Compressed.row_step = (int)dataFloat[3];
+						pointCloud2Compressed.is_bigendian = (int)dataFloat[4];
+						pointCloud2Compressed.is_dense = (int)dataFloat[5];
+						memcpy(pc2LocalTransform.data(), dataFloat+6, pc2LocalTransform.size()*sizeof(float));
+					}
+
+					data = sqlite3_column_blob(ppStmt, index);
+					dataSize = sqlite3_column_bytes(ppStmt, index++);
+					//pc2_fields
+					if(dataSize > 0 && data)
+					{
+						memcpy(pointCloud2Compressed.fields.data(), data, dataSize); //pointCloud2 fields
+					}
+
+					data = sqlite3_column_blob(ppStmt, index);
+					dataSize = sqlite3_column_bytes(ppStmt, index++);
+					//pc2_data
+					if(dataSize>4 && data)
+					{
+						memcpy(pointCloud2Compressed.data.data(), data, dataSize); //pointCloud2 data
+					}
+				}				
+
 				// Occupancy grid
 				cv::Mat groundCellsCompressed;
 				cv::Mat obstacleCellsCompressed;
@@ -1806,6 +1885,17 @@ void DBDriverSqlite3::loadNodeDataQuery(std::list<Signature *> & signatures, boo
 					viewPoint.z = sqlite3_column_double(ppStmt, index++);
 				}
 
+				if(images)
+				{
+					if(models.size())
+					{
+						(*iter)->sensorData().setRGBDImage(imageCompressed, depthOrRightCompressed, models);
+					}
+					else
+					{
+						(*iter)->sensorData().setStereoImage(imageCompressed, depthOrRightCompressed, stereoModels);
+					}
+				}
 				if(scan)
 				{
 					LaserScan laserScan;
@@ -1819,20 +1909,15 @@ void DBDriverSqlite3::loadNodeDataQuery(std::list<Signature *> & signatures, boo
 					}
 					(*iter)->sensorData().setLaserScan(laserScan);
 				}
-				if(images)
-				{
-					if(models.size())
-					{
-						(*iter)->sensorData().setRGBDImage(imageCompressed, depthOrRightCompressed, models);
-					}
-					else
-					{
-						(*iter)->sensorData().setStereoImage(imageCompressed, depthOrRightCompressed, stereoModels);
-					}
-				}
 				if(userData)
 				{
 					(*iter)->sensorData().setUserData(userDataCompressed);
+				}
+				if(pointCloud2)
+				{
+					PointCloud2 pointCloud2;
+					pointCloud2 = PointCloud2(pointCloud2Compressed, pc2LocalTransform);
+					(*iter)->sensorData().setPointCloud2(pointCloud2);
 				}
 
 				if(occupancyGrid)
@@ -2195,6 +2280,78 @@ bool DBDriverSqlite3::getLaserScanInfoQuery(
 				{
 					info = LaserScan(cv::Mat(), maxPts, maxRange, (LaserScan::Format)format, localTransform);
 				}
+			}
+
+			rc = sqlite3_step(ppStmt); // next result...
+		}
+		UASSERT_MSG(rc == SQLITE_DONE, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
+
+		// Finalize (delete) the statement
+		rc = sqlite3_finalize(ppStmt);
+		UASSERT_MSG(rc == SQLITE_OK, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
+	}
+	return found;
+}
+
+bool DBDriverSqlite3::getPointCloud2InfoQuery(
+		int signatureId,
+		PointCloud2 & info) const
+{
+	bool found = false;
+	if(_ppDb && signatureId)
+	{
+		int rc = SQLITE_OK;
+		sqlite3_stmt * ppStmt = 0;
+		std::stringstream query;
+
+		if(uStrNumCmp(_version, "0.21.1") >= 0)
+		{
+			query << "SELECT pc2_info "
+				  << "FROM Data "
+				  << "WHERE id = " << signatureId
+				  <<";";
+		}
+		else
+		{
+			return false;
+		}
+
+		rc = sqlite3_prepare_v2(_ppDb, query.str().c_str(), -1, &ppStmt, 0);
+		UASSERT_MSG(rc == SQLITE_OK, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
+
+		const void * data = 0;
+		int dataSize = 0;
+		Transform localTransform = Transform::getIdentity();
+
+		pcl::PCLPointCloud2 cloud = pcl::PCLPointCloud2();
+		// Process the result if one
+		rc = sqlite3_step(ppStmt);
+		if(rc == SQLITE_ROW)
+		{
+			found = true;
+			int index = 0;
+
+			// pc2_info
+			data = sqlite3_column_blob(ppStmt, index);
+			dataSize = sqlite3_column_bytes(ppStmt, index++);
+
+			if(dataSize > 0 && data)
+			{
+				float * dataFloat = (float*)data;
+				if(uStrNumCmp(_version, "0.21.1") >= 0)
+				{
+					UASSERT(dataSize == (int)((localTransform.size()+6)*sizeof(float)));
+					cloud.height = (int)dataFloat[0];
+					cloud.width  = (int)dataFloat[1];
+					cloud.point_step = (int)dataFloat[2];
+					cloud.row_step = (int)dataFloat[3];
+					cloud.is_bigendian = (int)dataFloat[4];
+					cloud.is_dense = (int)dataFloat[5];
+					memcpy(localTransform.data(), dataFloat+6, localTransform.size()*sizeof(float));
+				}
+	
+				info = PointCloud2(cloud, localTransform);
+
 			}
 
 			rc = sqlite3_step(ppStmt); // next result...
@@ -4406,6 +4563,7 @@ void DBDriverSqlite3::saveQuery(const std::list<Signature *> & signatures)
 				if(!(*i)->sensorData().imageCompressed().empty() ||
 				   !(*i)->sensorData().depthOrRightCompressed().empty() ||
 				   !(*i)->sensorData().laserScanCompressed().isEmpty() ||
+				   !(*i)->sensorData().pointCloud2Compressed().empty() ||
 				   !(*i)->sensorData().userDataCompressed().empty() ||
 				   !(*i)->sensorData().cameraModels().empty() ||
 				   !(*i)->sensorData().stereoCameraModels().empty())
@@ -4709,6 +4867,38 @@ void DBDriverSqlite3::updateLaserScanQuery(
 		UDEBUG("Time=%fs", timer.ticks());
 	}
 }
+
+void DBDriverSqlite3::updatePointCloud2Query(
+		int nodeId,
+		const PointCloud2 & cloud) const
+{
+	UDEBUG("");
+	if(_ppDb)
+	{
+		std::string type;
+		UTimer timer;
+		timer.start();
+		int rc = SQLITE_OK;
+		sqlite3_stmt * ppStmt = 0;
+
+		// Create query
+		std::string query = queryStepPointCloud2Update();
+		rc = sqlite3_prepare_v2(_ppDb, query.c_str(), -1, &ppStmt, 0);
+		UASSERT_MSG(rc == SQLITE_OK, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
+
+		// Save depth
+		stepPointCloud2Update(ppStmt,
+				nodeId,
+				cloud);
+
+		// Finalize (delete) the statement
+		rc = sqlite3_finalize(ppStmt);
+		UASSERT_MSG(rc == SQLITE_OK, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
+
+		UDEBUG("Time=%fs", timer.ticks());
+	}
+}
+
 
 void DBDriverSqlite3::addStatisticsQuery(const Statistics & statistics, bool saveWmState) const
 {
@@ -5998,6 +6188,14 @@ std::string DBDriverSqlite3::queryStepScanUpdate() const
 		return "UPDATE Data SET scan_max_pts=? scan=? WHERE id=?;";
 	}
 }
+
+
+std::string DBDriverSqlite3::queryStepPointCloud2Update() const
+{
+	UASSERT(uStrNumCmp(_version, "0.21.1") >= 0);
+	return "UPDATE Data SET pc2_info=?, pc2_fields=?, pc2_data=? WHERE id=?;";
+}
+
 void DBDriverSqlite3::stepScanUpdate(sqlite3_stmt * ppStmt, int nodeId, const LaserScan & scan) const
 {
 	if(!ppStmt)
@@ -6108,10 +6306,88 @@ void DBDriverSqlite3::stepScanUpdate(sqlite3_stmt * ppStmt, int nodeId, const La
 	UASSERT_MSG(rc == SQLITE_OK, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
 }
 
+void DBDriverSqlite3::stepPointCloud2Update(sqlite3_stmt * ppStmt, int nodeId, const PointCloud2 & cloud) const
+{
+	if(!ppStmt)
+	{
+		UFATAL("");
+	}
+
+	int rc = SQLITE_OK;
+	int index = 1;
+
+	//pc2_info
+	std::vector<float> pc2Info;
+	if((cloud.cloud().height > 0 && cloud.cloud().width > 0) ||
+			(!cloud.localTransform().isNull() && !cloud.localTransform().isIdentity()))
+	{
+
+		pc2Info.resize(6 + Transform().size());
+		pc2Info[0] = cloud.cloud().height;
+		pc2Info[1] = cloud.cloud().width;
+		pc2Info[2] = cloud.cloud().point_step;
+		pc2Info[3] = cloud.cloud().row_step;
+		pc2Info[4] = cloud.cloud().is_bigendian;
+		pc2Info[5] = cloud.cloud().is_dense;
+		const Transform & localTransform = cloud.localTransform();
+		memcpy(pc2Info.data()+6, localTransform.data(), localTransform.size()*sizeof(float));
+
+		
+	}
+
+	if(pc2Info.size())
+	{
+		rc = sqlite3_bind_blob(ppStmt, index++, pc2Info.data(), pc2Info.size()*sizeof(float), SQLITE_STATIC);
+	}
+	else
+	{
+		rc = sqlite3_bind_null(ppStmt, index++);
+	}
+	UASSERT_MSG(rc == SQLITE_OK, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
+
+
+	// pc2_fields
+	if((!(cloud.cloud().fields.size())) > 0)
+	{
+		rc = sqlite3_bind_blob(ppStmt, index++, cloud.cloud().fields.data(), cloud.cloud().fields.size() * sizeof(pcl::PCLPointField), SQLITE_STATIC);
+	}
+	else
+	{
+		rc = sqlite3_bind_null(ppStmt, index++);
+	}
+	UASSERT_MSG(rc == SQLITE_OK, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
+
+	// pc2_data
+	if(!cloud.empty())
+	{
+		rc = sqlite3_bind_blob(ppStmt, index++, cloud.cloud().data.data(), cloud.cloud().data.size() * sizeof(std::uint8_t), SQLITE_STATIC);
+	}
+	else
+	{
+		rc = sqlite3_bind_null(ppStmt, index++);
+	}
+	UASSERT_MSG(rc == SQLITE_OK, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
+
+	//id
+	rc = sqlite3_bind_int(ppStmt, index++, nodeId);
+	UASSERT_MSG(rc == SQLITE_OK, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
+
+	//step
+	rc=sqlite3_step(ppStmt);
+	UASSERT_MSG(rc == SQLITE_DONE, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
+
+	rc = sqlite3_reset(ppStmt);
+	UASSERT_MSG(rc == SQLITE_OK, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
+}
+
 std::string DBDriverSqlite3::queryStepSensorData() const
 {
 	UASSERT(uStrNumCmp(_version, "0.10.0") >= 0);
-	if(uStrNumCmp(_version, "0.16.0") >= 0)
+	if(uStrNumCmp(_version, "0.21.1") >= 0)
+	{
+		return "INSERT INTO Data(id, image, depth, calibration, scan_info, scan, pc2_info, pc2_fields, pc2_data, user_data, ground_cells, obstacle_cells, empty_cells, cell_size, view_point_x, view_point_y, view_point_z) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
+	}
+	else if(uStrNumCmp(_version, "0.16.0") >= 0)
 	{
 		return "INSERT INTO Data(id, image, depth, calibration, scan_info, scan, user_data, ground_cells, obstacle_cells, empty_cells, cell_size, view_point_x, view_point_y, view_point_z) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
 	}
@@ -6269,6 +6545,7 @@ void DBDriverSqlite3::stepSensorData(sqlite3_stmt * ppStmt,
 	}
 	UASSERT_MSG(rc == SQLITE_OK, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
 
+	//scan_info
 	std::vector<float> scanInfo;
 	if(uStrNumCmp(_version, "0.11.10") >= 0)
 	{
@@ -6354,6 +6631,59 @@ void DBDriverSqlite3::stepSensorData(sqlite3_stmt * ppStmt,
 		if(!sensorData.userDataCompressed().empty())
 		{
 			rc = sqlite3_bind_blob(ppStmt, index++, sensorData.userDataCompressed().data, (int)sensorData.userDataCompressed().cols, SQLITE_STATIC);
+		}
+		else
+		{
+			rc = sqlite3_bind_null(ppStmt, index++);
+		}
+		UASSERT_MSG(rc == SQLITE_OK, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
+	}
+
+	// pc2_info
+	std::vector<float> pc2Info;
+
+	if(sensorData.pointCloud2Compressed().cloud().width > 0 ||
+			(!sensorData.pointCloud2Compressed().localTransform().isNull() && !sensorData.pointCloud2Compressed().localTransform().isIdentity()))
+	{
+		pc2Info.resize(6 + Transform().size());
+		pc2Info[0] = sensorData.pointCloud2Compressed().cloud().height;
+		pc2Info[1] = sensorData.pointCloud2Compressed().cloud().width;
+		pc2Info[2] = sensorData.pointCloud2Compressed().cloud().point_step;
+		pc2Info[3] = sensorData.pointCloud2Compressed().cloud().row_step;
+		pc2Info[4] = sensorData.pointCloud2Compressed().cloud().is_bigendian;
+		pc2Info[5] = sensorData.pointCloud2Compressed().cloud().is_dense;
+		const Transform & localTransform = sensorData.pointCloud2Compressed().localTransform();
+		memcpy(pc2Info.data()+6, localTransform.data(), localTransform.size()*sizeof(float));
+	}
+
+	if(pc2Info.size())
+	{
+		rc = sqlite3_bind_blob(ppStmt, index++, pc2Info.data(), pc2Info.size()*sizeof(float), SQLITE_STATIC);
+	}
+	else
+	{
+		rc = sqlite3_bind_null(ppStmt, index++);
+	}
+	UASSERT_MSG(rc == SQLITE_OK, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
+
+
+	// pc2_fields
+		if(!sensorData.pointCloud2Compressed().isEmpty())
+		{
+			rc = sqlite3_bind_blob(ppStmt, index++, sensorData.pointCloud2Compressed().cloud().fields.data(), sensorData.pointCloud2Compressed().cloud().fields.size() * sizeof(pcl::PCLPointField), SQLITE_STATIC);
+		}
+		else
+		{
+			rc = sqlite3_bind_null(ppStmt, index++);
+		}
+		UASSERT_MSG(rc == SQLITE_OK, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
+
+	// pc2_data
+	if(uStrNumCmp(_version, "0.21.1") >= 0)
+	{
+		if(!sensorData.pointCloud2Compressed().isEmpty())
+		{
+			rc = sqlite3_bind_blob(ppStmt, index++, sensorData.pointCloud2Compressed().cloud().data.data(), sensorData.pointCloud2Compressed().cloud().data.size() * sizeof(std::uint8_t), SQLITE_STATIC);
 		}
 		else
 		{

@@ -2819,7 +2819,7 @@ void Memory::removeLink(int oldId, int newId)
 	}
 }
 
-void Memory::removeRawData(int id, bool image, bool scan, bool userData)
+void Memory::removeRawData(int id, bool image, bool scan, bool userData, bool pointCloud2)
 {
 	UDEBUG("id=%d image=%d scan=%d userData=%d", id, image?1:0, scan?1:0, userData?1:0);
 	Signature * s = this->_getSignature(id);
@@ -2828,7 +2828,8 @@ void Memory::removeRawData(int id, bool image, bool scan, bool userData)
 		s->sensorData().clearRawData(
 				image && (!_reextractLoopClosureFeatures || !_registrationPipeline->isImageRequired()),
 				scan && !_registrationPipeline->isScanRequired(),
-				userData && !_registrationPipeline->isUserDataRequired());
+				userData && !_registrationPipeline->isUserDataRequired(),
+				pointCloud2 && !_registrationPipeline->isPointCloud2Required());
 	}
 }
 
@@ -2878,27 +2879,30 @@ Transform Memory::computeTransform(
 	   (_registrationPipeline->isScanRequired() && fromS.sensorData().imageCompressed().empty() && fromS.sensorData().laserScanCompressed().isEmpty()) ||
 	   (_registrationPipeline->isUserDataRequired() && fromS.sensorData().imageCompressed().empty() && fromS.sensorData().userDataCompressed().empty()))
 	{
-		fromS.sensorData() = getNodeData(fromS.id(), true, true, true, true);
+		fromS.sensorData() = getNodeData(fromS.id(), true, true, true, true, true);
 	}
 	if(((_reextractLoopClosureFeatures && (_registrationPipeline->isImageRequired() || guess.isNull())) && toS.sensorData().imageCompressed().empty()) ||
 	   (_registrationPipeline->isScanRequired() && toS.sensorData().imageCompressed().empty() && toS.sensorData().laserScanCompressed().isEmpty()) ||
 	   (_registrationPipeline->isUserDataRequired() && toS.sensorData().imageCompressed().empty() && toS.sensorData().userDataCompressed().empty()))
 	{
-		toS.sensorData() = getNodeData(toS.id(), true, true, true, true);
+		toS.sensorData() = getNodeData(toS.id(), true, true, true, true, true);
 	}
 	// uncompress only what we need
 	cv::Mat imgBuf, depthBuf, userBuf;
 	LaserScan laserBuf;
+	PointCloud2 pc2Buf;
 	fromS.sensorData().uncompressData(
 			(_reextractLoopClosureFeatures && (_registrationPipeline->isImageRequired() || guess.isNull()))?&imgBuf:0,
 			(_reextractLoopClosureFeatures && (_registrationPipeline->isImageRequired() || guess.isNull()))?&depthBuf:0,
 			_registrationPipeline->isScanRequired()?&laserBuf:0,
-			_registrationPipeline->isUserDataRequired()?&userBuf:0);
+			_registrationPipeline->isUserDataRequired()?&userBuf:0,
+			_registrationPipeline->isPointCloud2Required()?&pc2Buf:0);
 	toS.sensorData().uncompressData(
 			(_reextractLoopClosureFeatures && (_registrationPipeline->isImageRequired() || guess.isNull()))?&imgBuf:0,
 			(_reextractLoopClosureFeatures && (_registrationPipeline->isImageRequired() || guess.isNull()))?&depthBuf:0,
 			_registrationPipeline->isScanRequired()?&laserBuf:0,
-			_registrationPipeline->isUserDataRequired()?&userBuf:0);
+			_registrationPipeline->isUserDataRequired()?&userBuf:0,
+			_registrationPipeline->isPointCloud2Required()?&pc2Buf:0);
 
 
 	// compute transform fromId -> toId
@@ -4119,7 +4123,7 @@ cv::Mat Memory::getImageCompressed(int signatureId) const
 	return image;
 }
 
-SensorData Memory::getNodeData(int locationId, bool images, bool scan, bool userData, bool occupancyGrid) const
+SensorData Memory::getNodeData(int locationId, bool images, bool scan, bool userData, bool pointCloud2, bool occupancyGrid) const
 {
 	//UDEBUG("");
 	SensorData r;
@@ -4128,6 +4132,7 @@ SensorData Memory::getNodeData(int locationId, bool images, bool scan, bool user
 			((!images || !s->sensorData().imageCompressed().empty()) &&
 			 (!scan || !s->sensorData().laserScanCompressed().isEmpty()) &&
 			 (!userData || !s->sensorData().userDataCompressed().empty()) &&
+			 (!pointCloud2 || !s->sensorData().userDataCompressed().empty()) &&			 
 			 (!occupancyGrid || s->sensorData().gridCellSize() != 0.0f))))
 	{
 		r = s->sensorData();
@@ -4143,6 +4148,10 @@ SensorData Memory::getNodeData(int locationId, bool images, bool scan, bool user
 		{
 			r.setUserData(cv::Mat());
 		}
+		if(!pointCloud2)
+		{
+			r.setPointCloud2(PointCloud2());
+		}		
 		if(!occupancyGrid)
 		{
 			r.setOccupancyGrid(cv::Mat(), cv::Mat(), cv::Mat(), 0, cv::Point3f());
@@ -4276,9 +4285,9 @@ int Memory::cleanupLocalGrids(
 		cv::Mat gridEmpty;
 
 		// scan
-		SensorData data = this->getNodeData(iter->first, false, true, false, true);
+		SensorData data = this->getNodeData(iter->first, false, true, false, false, true);
 		LaserScan scan;
-		data.uncompressData(0,0,&scan,0,&gridGround,&gridObstacles,&gridEmpty);
+		data.uncompressData(0,0,&scan,0,0,&gridGround,&gridObstacles,&gridEmpty);
 
 		if(!gridObstacles.empty())
 		{

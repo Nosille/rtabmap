@@ -1567,7 +1567,7 @@ cv::Mat mergeTextures(
 					}
 					else if(memory)
 					{
-						SensorData data = memory->getNodeData(textureId, true, false, false, false);
+						SensorData data = memory->getNodeData(textureId, true, false, false, false, false);
 						const std::vector<CameraModel> & models = data.cameraModels();
 						const std::vector<StereoCameraModel> & stereoModels = data.stereoCameraModels();
 						if(models.size()>=1 &&
@@ -1698,7 +1698,7 @@ cv::Mat mergeTextures(
 								}
 								else if(memory)
 								{
-									SensorData data = memory->getNodeData(textures[t].first, true, false, false, false);
+									SensorData data = memory->getNodeData(textures[t].first, true, false, false, false, false);
 									models = data.cameraModels();
 									if(models.empty() && !data.stereoCameraModels().empty())
 									{
@@ -1712,7 +1712,7 @@ cv::Mat mergeTextures(
 								else if(dbDriver)
 								{
 									SensorData data;
-									dbDriver->getNodeData(textures[t].first, data, true, false, false, false);
+									dbDriver->getNodeData(textures[t].first, data, true, false, false, false, false);
 									data.uncompressDataConst(&image, 0);
 									std::vector<StereoCameraModel> stereoModels;
 									dbDriver->getCalibration(textures[t].first, models, stereoModels);

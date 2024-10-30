@@ -249,7 +249,7 @@ int main(int argc, char * argv[])
 		std::map<int, Transform> optimizedPoses = rtabmap.getLocalOptimizedPoses();
 		for(std::map<int, Transform>::iterator iter=optimizedPoses.lower_bound(0); iter!=optimizedPoses.end(); ++iter)
 		{
-			SensorData data = rtabmap.getMemory()->getNodeData(iter->first, false, false, false, true);
+			SensorData data = rtabmap.getMemory()->getNodeData(iter->first, false, false, false, false, true);
 			data.uncompressData();
 			cache.add(iter->first, data.gridGroundCellsRaw(), data.gridObstacleCellsRaw(), data.gridEmptyCellsRaw(), data.gridCellSize(), data.gridViewPoint());
 		}

@@ -963,7 +963,7 @@ int main(int argc, char * argv[])
 							if(updateGridMap || updateOctoMap || updateCloudMap)
 							{
 								cv::Mat ground, obstacles, empty;
-								stats.getLastSignatureData().sensorData().uncompressDataConst(0, 0, 0, 0, &ground, &obstacles, &empty);
+								stats.getLastSignatureData().sensorData().uncompressDataConst(0, 0, 0, 0, 0, &ground, &obstacles, &empty);
 								float cellSize = stats.getLastSignatureData().sensorData().gridCellSize();
 								const cv::Point3f & viewpoint = stats.getLastSignatureData().sensorData().gridViewPoint();
 

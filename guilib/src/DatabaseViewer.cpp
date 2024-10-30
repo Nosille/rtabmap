@@ -1451,7 +1451,8 @@ void DatabaseViewer::exportDatabase()
 							!dialog.isRgbExported()?0:&rgb,
 							!dialog.isDepthExported()?0:&depth,
 							!dialog.isDepth2dExported()?0:&scan,
-							!dialog.isUserDataExported()?0:&userData);
+							!dialog.isUserDataExported()?0:&userData,
+							0);
 					cv::Mat covariance = cv::Mat::eye(6,6,CV_64FC1);
 					if(dialog.isOdomExported())
 					{
@@ -3049,7 +3050,7 @@ void DatabaseViewer::editSaved2DMap()
 				SensorData data;
 				dbDriver_->getNodeData(iter->first, data);
 				LaserScan scan;
-				data.uncompressData(0,0,&scan,0,&gridGround,&gridObstacles,&gridEmpty);
+				data.uncompressData(0,0,&scan,0,0,&gridGround,&gridObstacles,&gridEmpty);
 
 				if(generatedLocalMaps_.localGrids().find(iter->first) != generatedLocalMaps_.localGrids().end())
 				{
@@ -7062,7 +7063,7 @@ void DatabaseViewer::sliderIterationsValueChanged(int value)
 					cv::Mat ground, obstacles, empty;
 					if(data.gridCellSize()>0.0f)
 					{
-						data.uncompressData(0, 0, 0, 0, &ground, &obstacles, &empty);
+						data.uncompressData(0, 0, 0, 0, 0, &ground, &obstacles, &empty);
 					}
 					localMaps_.add(ids.at(i), ground, obstacles, empty, data.gridCellSize()>0.0f?data.gridCellSize():Parameters::defaultGridCellSize(), data.gridViewPoint());
 					if(!ground.empty() || !obstacles.empty())

@@ -117,6 +117,16 @@ bool Registration::isUserDataRequired() const
 	return val;
 }
 
+bool Registration::isPointCloud2Required() const
+{
+	bool val = isPointCloud2RequiredImpl();
+	if(!val && child_)
+	{
+		val = child_->isPointCloud2Required();
+	}
+	return val;
+}
+
 bool Registration::canUseGuess() const
 {
 	bool val = canUseGuessImpl();

@@ -2018,7 +2018,7 @@ void MainWindow::processStats(const rtabmap::Statistics & stat)
 					uncompressImages?&tmpRgb:0,
 					uncompressImages && !signature.sensorData().depthOrRightCompressed().empty()?&tmpDepth:0,
 					uncompressScan?&tmpScan:0,
-					0, &tmpG, &tmpO, &tmpE);
+					0, 0, &tmpG, &tmpO, &tmpE);
 
 			if( stat.getLastSignatureData().id() == stat.refImageId() &&
 				uStr2Bool(_preferencesDialog->getParameter(Parameters::kMemIncrementalMemory())) &&
@@ -3015,7 +3015,7 @@ void MainWindow::updateMapCloud(
 					cv::Mat obstacles;
 					cv::Mat empty;
 
-					jter->sensorData().uncompressDataConst(0, 0, 0, 0, &ground, &obstacles, &empty);
+					jter->sensorData().uncompressDataConst(0, 0, 0, 0, 0, &ground, &obstacles, &empty);
 
 					double resolution = jter->sensorData().gridCellSize();
 					if(_preferencesDialog->getGridUIResolution() > jter->sensorData().gridCellSize())
