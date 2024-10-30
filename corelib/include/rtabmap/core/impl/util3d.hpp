@@ -116,14 +116,19 @@ LaserScan laserScanFromPointCloud(const PointCloud2T & cloud, bool filterNaNs, b
 
 	bool hasNormals = fieldStates[3] || fieldStates[4] || fieldStates[5];
 	bool hasIntensity = fieldStates[7];
-	bool hasRGB = !hasIntensity&&fieldStates[6];
+	bool hasRGB = fieldStates[6];
 	bool is3D = fieldStates[0] && fieldStates[1] && fieldStates[2];
 
 	LaserScan::Format format;
 	int outputNormalOffset = 0;
 	if(is3D)
 	{
-		if(hasNormals && hasIntensity)
+		if(hasNormals && hasRGB)
+		{
+			format = LaserScan::kXYZRGBNormal;
+			outputNormalOffset = 4;
+		}
+		else if(hasNormals && hasIntensity)
 		{
 			format = LaserScan::kXYZINormal;
 			outputNormalOffset = 4;
@@ -133,18 +138,13 @@ LaserScan laserScanFromPointCloud(const PointCloud2T & cloud, bool filterNaNs, b
 			format = LaserScan::kXYZNormal;
 			outputNormalOffset = 3;
 		}
-		else if(hasNormals && hasRGB)
+		else if(!hasNormals && hasRGB)
 		{
-			format = LaserScan::kXYZRGBNormal;
-			outputNormalOffset = 4;
+			format = LaserScan::kXYZRGB;
 		}
 		else if(!hasNormals && hasIntensity)
 		{
 			format = LaserScan::kXYZI;
-		}
-		else if(!hasNormals && hasRGB)
-		{
-			format = LaserScan::kXYZRGB;
 		}
 		else
 		{
