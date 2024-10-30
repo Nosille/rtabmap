@@ -4614,6 +4614,8 @@ void DatabaseViewer::graphLinkSelected(int from, int to)
 
 void DatabaseViewer::sliderAValueChanged(int value)
 {
+	ui_->graphViewer->setNodeA(ids_.at(value));
+
 	this->update(value,
 			ui_->spinBox_indexA,
 			ui_->label_parentsA,
@@ -4641,6 +4643,8 @@ void DatabaseViewer::sliderAValueChanged(int value)
 
 void DatabaseViewer::sliderBValueChanged(int value)
 {
+	ui_->graphViewer->setNodeB(ids_.at(value));
+	
 	this->update(value,
 			ui_->spinBox_indexB,
 			ui_->label_parentsB,
