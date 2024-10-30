@@ -817,7 +817,7 @@ long DBDriverSqlite3::getPointCloud2MemoryUsedQuery() const
 	if(_ppDb)
 	{
 		std::string query;
-		if(uStrNumCmp(_version, "0.21.10") >= 0)
+		if(uStrNumCmp(_version, "1.0.0") >= 0)
 		{
 			query = "SELECT sum(ifnull(length(pc2_info),0) + ifnull(length(pc2_fields),0) + ifnull(length(pc2_data),0)) from Data;";
 		}
@@ -2303,7 +2303,7 @@ bool DBDriverSqlite3::getPointCloud2InfoQuery(
 		sqlite3_stmt * ppStmt = 0;
 		std::stringstream query;
 
-		if(uStrNumCmp(_version, "0.21.1") >= 0)
+		if(uStrNumCmp(_version, "1.0.0") >= 0)
 		{
 			query << "SELECT pc2_info "
 				  << "FROM Data "
@@ -2337,7 +2337,7 @@ bool DBDriverSqlite3::getPointCloud2InfoQuery(
 			if(dataSize > 0 && data)
 			{
 				float * dataFloat = (float*)data;
-				if(uStrNumCmp(_version, "0.21.1") >= 0)
+				if(uStrNumCmp(_version, "1.0.0") >= 0)
 				{
 					UASSERT(dataSize == (int)((localTransform.size()+6)*sizeof(float)));
 					cloud.height = (int)dataFloat[0];
@@ -6191,7 +6191,7 @@ std::string DBDriverSqlite3::queryStepScanUpdate() const
 
 std::string DBDriverSqlite3::queryStepPointCloud2Update() const
 {
-	UASSERT(uStrNumCmp(_version, "0.21.1") >= 0);
+	UASSERT(uStrNumCmp(_version, "1.0.0") >= 0);
 	return "UPDATE Data SET pc2_info=?, pc2_fields=?, pc2_data=? WHERE id=?;";
 }
 
@@ -6382,7 +6382,7 @@ void DBDriverSqlite3::stepPointCloud2Update(sqlite3_stmt * ppStmt, int nodeId, c
 std::string DBDriverSqlite3::queryStepSensorData() const
 {
 	UASSERT(uStrNumCmp(_version, "0.10.0") >= 0);
-	if(uStrNumCmp(_version, "0.21.1") >= 0)
+	if(uStrNumCmp(_version, "1.0.0") >= 0)
 	{
 		return "INSERT INTO Data(id, image, depth, calibration, scan_info, scan, pc2_info, pc2_fields, pc2_data, user_data, ground_cells, obstacle_cells, empty_cells, cell_size, view_point_x, view_point_y, view_point_z) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
 	}
@@ -6651,20 +6651,19 @@ void DBDriverSqlite3::stepSensorData(sqlite3_stmt * ppStmt,
 	}
 	UASSERT_MSG(rc == SQLITE_OK, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
 
-
 	// pc2_fields
-		if(!sensorData.pointCloud2Compressed().isEmpty())
-		{
-			rc = sqlite3_bind_blob(ppStmt, index++, sensorData.pointCloud2Compressed().cloud().fields.data(), sensorData.pointCloud2Compressed().cloud().fields.size() * sizeof(pcl::PCLPointField), SQLITE_STATIC);
-		}
-		else
-		{
-			rc = sqlite3_bind_null(ppStmt, index++);
-		}
-		UASSERT_MSG(rc == SQLITE_OK, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
+	if(!sensorData.pointCloud2Compressed().isEmpty())
+	{
+		rc = sqlite3_bind_blob(ppStmt, index++, sensorData.pointCloud2Compressed().cloud().fields.data(), sensorData.pointCloud2Compressed().cloud().fields.size() * sizeof(pcl::PCLPointField), SQLITE_STATIC);
+	}
+	else
+	{
+		rc = sqlite3_bind_null(ppStmt, index++);
+	}
+	UASSERT_MSG(rc == SQLITE_OK, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
 
 	// pc2_data
-	if(uStrNumCmp(_version, "0.21.1") >= 0)
+	if(uStrNumCmp(_version, "1.0.0") >= 0)
 	{
 		if(!sensorData.pointCloud2Compressed().isEmpty())
 		{
