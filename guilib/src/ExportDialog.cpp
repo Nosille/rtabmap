@@ -166,7 +166,7 @@ bool ExportDialog::isOdomExported() const
 	return _ui->checkBox_odom->isChecked();
 }
 
-bool ExportDialog::isPointCloud2xported() const
+bool ExportDialog::isPointCloud2Exported() const
 {
 	return _ui->checkBox_pointCloud2->isChecked();
 }
