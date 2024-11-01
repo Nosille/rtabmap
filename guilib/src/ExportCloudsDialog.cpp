@@ -4034,6 +4034,217 @@ void ExportCloudsDialog::saveClouds(
 		bool binaryMode,
 		const std::vector<std::map<int, pcl::PointXY> > & pointToPixels)
 {
+	if(clouds.size())
+	{
+		QStringList items;
+		items.push_back("ply");
+		items.push_back("pcd");
+#ifdef RTABMAP_PDAL
+		QString extensions = tr("Save clouds to (*.ply *.pcd");
+		std::list<std::string> pdalFormats = uSplit(getPDALSupportedWriters(), ' ');
+		for(std::list<std::string>::iterator iter=pdalFormats.begin(); iter!=pdalFormats.end(); ++iter)
+		{
+			if(iter->compare("ply") == 0 || iter->compare("pcd") == 0)
+			{
+				continue;
+			}
+			extensions += QString(" *.") + iter->c_str();
+
+			items.push_back(iter->c_str());
+		}
+		extensions += ")...";
+#elif defined(RTABMAP_LIBLAS)
+		QString extensions = tr("Save clouds to (*.ply *.pcd *.las *.laz)...");
+#else
+		QString extensions = tr("Save clouds to (*.ply *.pcd)...");
+#endif
+		QString path = QFileDialog::getExistingDirectory(this, extensions, workingDirectory, QFileDialog::ShowDirsOnly);
+		if(!path.isEmpty())
+		{
+			bool ok = false;
+			QString suffix = QInputDialog::getItem(this, tr("File format"), tr("Which format?"), items, 0, false, &ok);
+
+			if(ok)
+			{
+				QString prefix = QInputDialog::getText(this, tr("File prefix"), tr("Prefix:"), QLineEdit::Normal, "cloud", &ok);
+
+				if(ok)
+				{
+					for(std::map<int, pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr >::const_iterator iter=clouds.begin(); iter!=clouds.end(); ++iter)
+					{
+						if(iter->second->size())
+						{
+							pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr transformedCloud;
+							transformedCloud = util3d::transformPointCloud(iter->second, !_ui->comboBox_frame->isEnabled()||_ui->comboBox_frame->currentIndex()==0?poses.at(iter->first):Transform::getIdentity());
+
+							pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudRGBWithoutNormals;
+							pcl::PointCloud<pcl::PointXYZI>::Ptr cloudIWithoutNormals;
+							pcl::PointCloud<pcl::PointXYZINormal>::Ptr cloudIWithNormals;
+							if(!_ui->checkBox_fromDepth->isChecked() && !_scansHaveRGB)
+							{
+								// When laser scans are exported, convert RGB to Intensity
+								if(_ui->spinBox_normalKSearch->value()>0 || _ui->doubleSpinBox_normalRadiusSearch->value()>0.0)
+								{
+									cloudIWithNormals.reset(new pcl::PointCloud<pcl::PointXYZINormal>);
+									cloudIWithNormals->resize(transformedCloud->size());
+									for(unsigned int i=0; i<cloudIWithNormals->size(); ++i)
+									{
+										cloudIWithNormals->points[i].x = transformedCloud->points[i].x;
+										cloudIWithNormals->points[i].y = transformedCloud->points[i].y;
+										cloudIWithNormals->points[i].z = transformedCloud->points[i].z;
+										cloudIWithNormals->points[i].normal_x = transformedCloud->points[i].normal_x;
+										cloudIWithNormals->points[i].normal_y = transformedCloud->points[i].normal_y;
+										cloudIWithNormals->points[i].normal_z = transformedCloud->points[i].normal_z;
+										cloudIWithNormals->points[i].curvature = transformedCloud->points[i].curvature;
+										int * intensity = (int *)&cloudIWithNormals->points[i].intensity;
+										*intensity =
+												int(transformedCloud->points[i].r) |
+												int(transformedCloud->points[i].g) << 8 |
+												int(transformedCloud->points[i].b) << 16 |
+												int(transformedCloud->points[i].a) << 24;
+									}
+								}
+								else
+								{
+									cloudIWithoutNormals.reset(new pcl::PointCloud<pcl::PointXYZI>);
+									cloudIWithoutNormals->resize(transformedCloud->size());
+									for(unsigned int i=0; i<cloudIWithoutNormals->size(); ++i)
+									{
+										cloudIWithoutNormals->points[i].x = transformedCloud->points[i].x;
+										cloudIWithoutNormals->points[i].y = transformedCloud->points[i].y;
+										cloudIWithoutNormals->points[i].z = transformedCloud->points[i].z;
+										int * intensity = (int *)&cloudIWithoutNormals->points[i].intensity;
+										*intensity =
+												int(transformedCloud->points[i].r) |
+												int(transformedCloud->points[i].g) << 8 |
+												int(transformedCloud->points[i].b) << 16 |
+												int(transformedCloud->points[i].a) << 24;
+									}
+								}
+							}
+							else if(_ui->spinBox_normalKSearch->value()<=0 && _ui->doubleSpinBox_normalRadiusSearch->value()<=0.0)
+							{
+								cloudRGBWithoutNormals.reset(new pcl::PointCloud<pcl::PointXYZRGB>);
+								pcl::copyPointCloud(*transformedCloud, *cloudRGBWithoutNormals);
+							}
+
+							QString pathFile = path+QDir::separator()+QString("%1%2.%3").arg(prefix).arg(iter->first).arg(suffix);
+							bool success =false;
+							if(suffix == "pcd")
+							{
+								if(cloudIWithNormals.get())
+								{
+									success = pcl::io::savePCDFile(pathFile.toStdString(), *cloudIWithNormals, binaryMode) == 0;
+								}
+								else if(cloudIWithoutNormals.get())
+								{
+									success = pcl::io::savePCDFile(pathFile.toStdString(), *cloudIWithoutNormals, binaryMode) == 0;
+								}
+								else if(cloudRGBWithoutNormals.get())
+								{
+									success = pcl::io::savePCDFile(pathFile.toStdString(), *cloudRGBWithoutNormals, binaryMode) == 0;
+								}
+								else
+								{
+									success = pcl::io::savePCDFile(pathFile.toStdString(), *transformedCloud, binaryMode) == 0;
+								}
+							}
+							else if(suffix == "ply")
+							{
+								if(cloudIWithNormals.get())
+								{
+									success = pcl::io::savePLYFile(pathFile.toStdString(), *cloudIWithNormals, binaryMode) == 0;
+								}
+								else if(cloudIWithoutNormals.get())
+								{
+									success = pcl::io::savePLYFile(pathFile.toStdString(), *cloudIWithoutNormals, binaryMode) == 0;
+								}
+								else if(cloudRGBWithoutNormals.get())
+								{
+									success = pcl::io::savePLYFile(pathFile.toStdString(), *cloudRGBWithoutNormals, binaryMode) == 0;
+								}
+								else
+								{
+									success = pcl::io::savePLYFile(pathFile.toStdString(), *transformedCloud, binaryMode) == 0;
+								}
+							}
+#if defined(RTABMAP_PDAL) || defined(RTABMAP_LIBLAS)
+							else if(!suffix.isEmpty())
+							{
+								if(cloudIWithNormals.get())
+								{
+#ifdef RTABMAP_PDAL
+									success = savePDALFile(pathFile.toStdString(), *cloudIWithNormals) == 0;
+#else
+									UERROR("Normals cannot be save with current libLAS implementation, disable normals estimation.");
+									success = false;
+#endif
+								}
+								else if(cloudIWithoutNormals.get())
+								{
+#ifdef RTABMAP_PDAL
+									success = savePDALFile(pathFile.toStdString(), *cloudIWithoutNormals) == 0;
+#else
+									success = saveLASFile(pathFile.toStdString(), *cloudIWithoutNormals) == 0;
+#endif
+								}
+								else if(cloudRGBWithoutNormals.get())
+								{
+#ifdef RTABMAP_PDAL
+									success = savePDALFile(pathFile.toStdString(), *cloudRGBWithoutNormals) == 0;
+#else
+									success = saveLASFile(pathFile.toStdString(), *cloudRGBWithoutNormals) == 0;
+#endif
+								}
+								else
+								{
+#ifdef RTABMAP_PDAL
+									success = savePDALFile(pathFile.toStdString(), *transformedCloud) == 0;
+#else
+									UERROR("Normals cannot be save with current libLAS implementation, disable normals estimation.");
+									success = false;
+#endif
+								}
+							}
+#endif
+							else
+							{
+								UFATAL("Extension not recognized! (%s)", suffix.toStdString().c_str());
+							}
+							if(success)
+							{
+								_progressDialog->appendText(tr("Saved cloud %1 (%2 points) to %3.").arg(iter->first).arg(iter->second->size()).arg(pathFile));
+							}
+							else
+							{
+								_progressDialog->appendText(tr("Failed saving cloud %1 (%2 points) to %3.").arg(iter->first).arg(iter->second->size()).arg(pathFile), Qt::darkRed);
+								_progressDialog->setAutoClose(false);
+							}
+						}
+						else
+						{
+							_progressDialog->appendText(tr("Cloud %1 is empty!").arg(iter->first));
+						}
+						_progressDialog->incrementStep();
+						QApplication::processEvents();
+						if(_canceled)
+						{
+							return;
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+void ExportCloudsDialog::saveClouds(
+		const QString & workingDirectory,
+		const std::map<int, Transform> & poses,
+		const std::map<int, pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr> & clouds,
+		bool binaryMode,
+		const std::vector<std::map<int, pcl::PointXY> > & pointToPixels)
+{
 	if(clouds.size() == 1)
 	{
 #ifdef RTABMAP_PDAL
