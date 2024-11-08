@@ -480,22 +480,25 @@ void SensorData::setLaserScan(const LaserScan & laserScan, bool clearPreviousDat
 
 void SensorData::setPointCloud2(const rtabmap::PointCloud2 & pointCloud2, bool clearPreviousData)
 {
-	if(!pointCloud2.isCompressed())
-	{
-		_pointCloud2Raw = pointCloud2;
-		if(clearPreviousData)
-		{
-			_pointCloud2Compressed = PointCloud2();
-		}
-	}
-	else
-	{
-		_pointCloud2Compressed = pointCloud2;
-		if(clearPreviousData)
-		{
-			_pointCloud2Raw = PointCloud2();
-		}
-	}
+	_pointCloud2Raw = pointCloud2;
+	_pointCloud2Compressed = pointCloud2;
+	
+	// if(!pointCloud2.isCompressed())
+	// {
+	// 	_pointCloud2Raw = pointCloud2;
+	// 	if(clearPreviousData)
+	// 	{
+	// 		_pointCloud2Compressed = PointCloud2();
+	// 	}
+	// }
+	// else
+	// {
+	// 	_pointCloud2Compressed = pointCloud2;
+	// 	if(clearPreviousData)
+	// 	{
+	// 		_pointCloud2Raw = PointCloud2();
+	// 	}
+	// }
 }
 
 void SensorData::setUserData(const cv::Mat & userData, bool clearPreviousData)
@@ -707,7 +710,7 @@ void SensorData::uncompressData(
 			}
 		}
 	}
-	if(pointCloud2Raw && !pointCloud2Raw->empty() && _pointCloud2Raw.empty())
+	if(pointCloud2Raw && !pointCloud2Raw->isEmpty() && _pointCloud2Raw.isEmpty())
 	{
 		_pointCloud2Raw = *pointCloud2Raw;
 	}
@@ -803,11 +806,12 @@ void SensorData::uncompressDataConst(
 			UASSERT(_laserScanCompressed.isCompressed());
 			ctLaserScan.start();
 		}
-		// if(pointCloud2Raw && pointCloud2Raw->empty() && !_pointCloud2Compressed.empty())
-		// {
-		// 	UASSERT(_pointCloud2Compressed.isCompressed());
-		// 	ctPointCloud2.start();
-		// }
+		if(pointCloud2Raw && pointCloud2Raw->isEmpty() && !_pointCloud2Compressed.isEmpty())
+		{
+			UASSERT(_pointCloud2Compressed.isCompressed());
+			*pointCloud2Raw = rtabmap::PointCloud2(_pointCloud2Compressed.cloud(), _pointCloud2Compressed.localTransform());
+			// ctPointCloud2.start();
+		}
 		if(userDataRaw && userDataRaw->empty() && !_userDataCompressed.empty())
 		{
 			UASSERT(_userDataCompressed.type() == CV_8UC1);

@@ -58,7 +58,8 @@ public:
 	bool hasNormals() const {return std::any_of(cloud_.fields.begin(), cloud_.fields.end(), [](pcl::PCLPointField field){return field.name=="normal_x";});}
 	bool hasRGB() const {return std::any_of(cloud_.fields.begin(), cloud_.fields.end(), [](pcl::PCLPointField field){return field.name=="rgb" || field.name=="rgba";});}
 	bool hasIntensity() const {return std::any_of(cloud_.fields.begin(), cloud_.fields.end(), [](pcl::PCLPointField field){return field.name=="intensity";});}
-	bool isCompressed() const {return !cloud_.data.empty() && cloud_.width>=1 && cloud_.height==1;}
+	// bool isCompressed() const {return !cloud_.data.empty() && cloud_.width>=1 && cloud_.height==1;}
+	bool isCompressed() const {return false;}
 	PointCloud2 clone() const;
 
 	void clear() {cloud_ = pcl::PCLPointCloud2();}
