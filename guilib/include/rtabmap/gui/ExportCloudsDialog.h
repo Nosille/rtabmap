@@ -133,10 +133,10 @@ private Q_SLOTS:
 
 private:
 	std::map<int, Transform> filterNodes(const std::map<int, Transform> & poses);
-	std::map<int, std::pair<pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr, pcl::IndicesPtr> > getClouds(
+	std::map<int, std::pair<pcl::PCLPointCloud2::Ptr, pcl::IndicesPtr> > getClouds(
 			const std::map<int, Transform> & poses,
 			const QMap<int, Signature> & cachedSignatures,
-			const std::map<int, std::pair<pcl::PointCloud<pcl::PointXYZRGB>::Ptr, pcl::IndicesPtr> > & cachedClouds,
+			const std::map<int, std::pair<pcl::PCLPointCloud2::Ptr, pcl::IndicesPtr> > & cachedClouds,
 			const std::map<int, LaserScan> & cachedScans,
 			const ParametersMap & parameters,
 			bool & has2dScans,
