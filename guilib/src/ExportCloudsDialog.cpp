@@ -4114,9 +4114,8 @@ void ExportCloudsDialog::saveClouds(
 					pcl::toPCLPointCloud2(*cloudRGBWithNormals, *pointCloud2);
 				}
 
-				pointCloud2s.insert(std::make_pair(iter->first, pointCloud2));
+			pointCloud2s.insert(std::make_pair(iter->first, pointCloud2));
 			_progressDialog->appendText(tr("Converted cloud %1  to PointCloud2 (%2/%3).").arg(iter->first).arg(index).arg(poses.size()));
-			UINFO("Converted cloud %1 =%d", (int)iter->first);
 
 			}
 		}
