@@ -3637,20 +3637,30 @@ void DatabaseViewer::updateOptimizedMesh()
 		std::map<int, pcl::TextureMesh::Ptr> textureMeshes;
 		std::vector<std::map<int, pcl::PointXY> > textureVertexToPixels;
 
+		std::map<int, pcl::PCLPointCloud2::Ptr > cloud2s;
 		if(exportDialog_->getExportedClouds(
 				optimizedPoses,
 				updateLinksWithModifications(links_),
 				mapIds_,
 				QMap<int, Signature>(),
-				std::map<int, std::pair<pcl::PointCloud<pcl::PointXYZRGB>::Ptr, pcl::IndicesPtr> >(),
+				std::map<int, std::pair<pcl::PCLPointCloud2::Ptr, pcl::IndicesPtr> >(),
 				std::map<int, LaserScan>(),
 				pathDatabase_,
 				ui_->parameters_toolbox->getParameters(),
-				clouds,
+				cloud2s,
 				meshes,
 				textureMeshes,
 				textureVertexToPixels))
 		{
+			for(std::map<int, pcl::PCLPointCloud2::Ptr >::const_iterator iter=cloud2s.begin(); iter!=cloud2s.end(); ++iter)
+			{
+				pcl::PCLPointCloud2::Ptr pointCloud2 = iter->second;
+				pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr pointCloud(new pcl::PointCloud<pcl::PointXYZRGBNormal>);
+				pcl::fromPCLPointCloud2(*pointCloud2, *pointCloud);
+				
+				clouds.insert(std::make_pair(iter->first, pointCloud));
+			}
+						
 			if(textureMeshes.size())
 			{
 				dbDriver_->saveOptimizedPoses(optimizedPoses, lastlocalizationPose);

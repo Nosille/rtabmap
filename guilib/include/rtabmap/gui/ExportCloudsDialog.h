@@ -94,11 +94,11 @@ public:
 			const std::multimap<int, Link> & links,
 			const std::map<int, int> & mapIds,
 			const QMap<int, Signature> & cachedSignatures,
-			const std::map<int, std::pair<pcl::PointCloud<pcl::PointXYZRGB>::Ptr, pcl::IndicesPtr> > & cachedClouds,
+			const std::map<int, std::pair<pcl::PCLPointCloud2::Ptr, pcl::IndicesPtr> > & cachedClouds,
 			const std::map<int, LaserScan> & cachedScans,
 			const QString & workingDirectory,
 			const ParametersMap & parameters,
-			std::map<int, pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr> & clouds,
+			std::map<int, pcl::PCLPointCloud2::Ptr> & clouds,
 			std::map<int, pcl::PolygonMesh::Ptr> & meshes,
 			std::map<int, pcl::TextureMesh::Ptr> & textureMeshes,
 			std::vector<std::map<int, pcl::PointXY> > & textureVertexToPixels);
