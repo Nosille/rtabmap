@@ -3281,6 +3281,56 @@ std::vector<std::pair< std::pair<int, int>, pcl::PointXY> > projectCloudToCamera
 }
 
 std::vector<std::pair< std::pair<int, int>, pcl::PointXY> > projectCloudToCameras (
+		const typename pcl::PCLPointCloud2 & cloud,
+		const std::map<int, Transform> & cameraPoses,
+		const std::map<int, std::vector<CameraModel> > & cameraModels,
+		float maxDistance,
+		float maxAngle,
+		const std::vector<float> & roiRatios,
+		const cv::Mat & projMask,
+		bool distanceToCamPolicy,
+		const ProgressState * state)
+{
+	// Check for 'rgb'
+	bool has_rgb = false;
+
+	for (const auto &field : cloud.fields)
+		if (field.name == "rgb" || field.name == "rgba")
+			has_rgb = true;
+
+	if (has_rgb)
+	{
+	    pcl::PointCloud<pcl::PointXYZRGBNormal> cloud_pcl;
+		pcl::fromPCLPointCloud2(cloud, cloud_pcl);
+
+		return projectCloudToCameras(cloud_pcl,
+			cameraPoses,
+			cameraModels,
+			maxDistance,
+			maxAngle,
+			roiRatios,
+			projMask,
+			distanceToCamPolicy,
+			state);		
+	}
+	else
+	{
+		pcl::PointCloud<pcl::PointXYZINormal> cloud_pcl;
+		pcl::fromPCLPointCloud2(cloud, cloud_pcl);	
+
+		return projectCloudToCameras(cloud_pcl,
+			cameraPoses,
+			cameraModels,
+			maxDistance,
+			maxAngle,
+			roiRatios,
+			projMask,
+			distanceToCamPolicy,
+			state);		
+	}
+}
+
+std::vector<std::pair< std::pair<int, int>, pcl::PointXY> > projectCloudToCameras (
 		const typename pcl::PointCloud<pcl::PointXYZRGBNormal> & cloud,
 		const std::map<int, Transform> & cameraPoses,
 		const std::map<int, std::vector<CameraModel> > & cameraModels,

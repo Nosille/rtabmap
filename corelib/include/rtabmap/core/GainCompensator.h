@@ -47,6 +47,16 @@ public:
 	virtual ~GainCompensator();
 
 	void feed(
+			const pcl::PCLPointCloud2::Ptr & cloudA, // should not contain NaNs
+			const pcl::PCLPointCloud2::Ptr & cloudB, // should not contain NaNs
+			const Transform & transformB);
+	void feed(
+			const pcl::PCLPointCloud2::Ptr & cloudA,
+			const pcl::IndicesPtr & indicesA,
+			const pcl::PCLPointCloud2::Ptr & cloudB,
+			const pcl::IndicesPtr & indicesB,
+			const Transform & transformB);
+	void feed(
 			const pcl::PointCloud<pcl::PointXYZRGB>::Ptr & cloudA, // should not contain NaNs
 			const pcl::PointCloud<pcl::PointXYZRGB>::Ptr & cloudB, // should not contain NaNs
 			const Transform & transformB);
@@ -56,6 +66,13 @@ public:
 			const pcl::PointCloud<pcl::PointXYZRGB>::Ptr & cloudB,
 			const pcl::IndicesPtr & indicesB,
 			const Transform & transformB);
+	void feed(
+			const std::map<int, pcl::PCLPointCloud2::Ptr> & clouds, // should not contain NaNs
+			const std::multimap<int, Link> & links);
+	void feed(
+			const std::map<int, pcl::PCLPointCloud2::Ptr> & clouds,
+			const std::map<int, pcl::IndicesPtr> & indices,
+			const std::multimap<int, Link> & links);
 	void feed(
 			const std::map<int, pcl::PointCloud<pcl::PointXYZRGB>::Ptr> & clouds, // should not contain NaNs
 			const std::multimap<int, Link> & links);
@@ -68,9 +85,21 @@ public:
 			const std::map<int, pcl::IndicesPtr> & indices,
 			const std::multimap<int, Link> & links);
 	void feed(
+			const std::map<int, std::pair<pcl::PCLPointCloud2::Ptr, pcl::IndicesPtr> > & clouds,
+			const std::multimap<int, Link> & links);
+	void feed(
 			const std::map<int, std::pair<pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr, pcl::IndicesPtr> > & clouds,
 			const std::multimap<int, Link> & links);
 
+	void apply(
+			int id,
+			pcl::PCLPointCloud2::Ptr & cloud,
+			bool rgb = true) const;
+	void apply(
+			int id,
+			pcl::PCLPointCloud2::Ptr & cloud,
+			const pcl::IndicesPtr & indices,
+			bool rgb = true) const;			
 	void apply(
 			int id,
 			pcl::PointCloud<pcl::PointXYZRGB>::Ptr & cloud,

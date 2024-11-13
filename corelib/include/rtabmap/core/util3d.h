@@ -378,6 +378,16 @@ std::vector<std::pair< std::pair<int, int>, pcl::PointXY> > RTABMAP_CORE_EXPORT 
 		const cv::Mat & projMask = cv::Mat(),
 		bool distanceToCamPolicy = false,
 		const ProgressState * state = 0);
+std::vector<std::pair< std::pair<int, int>, pcl::PointXY> > RTABMAP_CORE_EXPORT projectCloudToCameras (
+		const pcl::PCLPointCloud2 & cloud,
+		const std::map<int, Transform> & cameraPoses,
+		const std::map<int, std::vector<CameraModel> > & cameraModels,
+		float maxDistance = 0.0f,
+		float maxAngle = 0.0f,
+		const std::vector<float> & roiRatios = std::vector<float>(),
+		const cv::Mat & projMask = cv::Mat(),
+		bool distanceToCamPolicy = false,
+		const ProgressState * state = 0);		
 /**
  * For each point, return pixel of the best camera (NodeID->CameraIndex)
  * looking at it based on the policy and parameters

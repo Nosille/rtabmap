@@ -114,7 +114,7 @@ pcl::PCLPointCloud2::Ptr transformPointCloud(
 	// Check for 'normals'
 	bool has_normals = false;
 	for (const auto &field : cloud->fields)
-		if (field.name == "normals")
+		if (field.name == "normal_x" || field.name == "normal_y" || field.name == "normal_z")
 			has_normals = true;
 
 	if (has_normals)
@@ -199,7 +199,7 @@ pcl::PCLPointCloud2::Ptr transformPointCloud(
 	// Check for 'normals'
 	bool has_normals = false;
 	for (const auto &field : cloud->fields)
-		if (field.name == "normals")
+		if (field.name == "normal_x" || field.name == "normal_y" || field.name == "normal_z")
 			has_normals = true;
 
 	if (has_normals)
