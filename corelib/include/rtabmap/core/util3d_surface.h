@@ -341,6 +341,11 @@ pcl::PointCloud<pcl::Normal>::Ptr RTABMAP_CORE_EXPORT computeNormals(
 		int searchK = 20,
 		float searchRadius = 0.0f,
 		const Eigen::Vector3f & viewPoint = Eigen::Vector3f(0,0,0));
+pcl::PCLPointCloud2::Ptr RTABMAP_CORE_EXPORT computeNormals(
+		const pcl::PCLPointCloud2::Ptr & cloud,
+		int searchK = 20,
+		float searchRadius = 0.0f,
+		const Eigen::Vector3f & viewPoint = Eigen::Vector3f(0,0,0));
 pcl::PointCloud<pcl::Normal>::Ptr RTABMAP_CORE_EXPORT computeNormals(
 		const pcl::PointCloud<pcl::PointXYZ>::Ptr & cloud,
 		const pcl::IndicesPtr & indices,
@@ -355,6 +360,12 @@ pcl::PointCloud<pcl::Normal>::Ptr RTABMAP_CORE_EXPORT computeNormals(
 		const Eigen::Vector3f & viewPoint = Eigen::Vector3f(0,0,0));
 pcl::PointCloud<pcl::Normal>::Ptr RTABMAP_CORE_EXPORT computeNormals(
 		const pcl::PointCloud<pcl::PointXYZI>::Ptr & cloud,
+		const pcl::IndicesPtr & indices,
+		int searchK = 20,
+		float searchRadius = 0.0f,
+		const Eigen::Vector3f & viewPoint = Eigen::Vector3f(0,0,0));
+pcl::PCLPointCloud2::Ptr RTABMAP_CORE_EXPORT computeNormals(
+		const pcl::PCLPointCloud2::Ptr & cloud,
 		const pcl::IndicesPtr & indices,
 		int searchK = 20,
 		float searchRadius = 0.0f,
@@ -445,6 +456,29 @@ pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr RTABMAP_CORE_EXPORT mls(
 		float dilationVoxelSize = 1.0f,  // VOXEL_GRID_DILATION
 		int dilationIterations = 0);     // VOXEL_GRID_DILATION
 
+pcl::PCLPointCloud2::Ptr RTABMAP_CORE_EXPORT mls(
+		const pcl::PCLPointCloud2::Ptr & cloud,
+		float searchRadius = 0.0f,
+		int polygonialOrder = 2,
+		int upsamplingMethod = 0, // NONE, DISTINCT_CLOUD, SAMPLE_LOCAL_PLANE, RANDOM_UNIFORM_DENSITY, VOXEL_GRID_DILATION
+		float upsamplingRadius = 0.0f,   // SAMPLE_LOCAL_PLANE
+		float upsamplingStep = 0.0f,     // SAMPLE_LOCAL_PLANE
+		int pointDensity = 0,            // RANDOM_UNIFORM_DENSITY
+		float dilationVoxelSize = 1.0f,  // VOXEL_GRID_DILATION
+		int dilationIterations = 0);     // VOXEL_GRID_DILATION
+pcl::PCLPointCloud2::Ptr RTABMAP_CORE_EXPORT mls(
+		const pcl::PCLPointCloud2::Ptr & cloud,
+		const pcl::IndicesPtr & indices,
+		float searchRadius = 0.0f,
+		int polygonialOrder = 2,
+		int upsamplingMethod = 0, // NONE, DISTINCT_CLOUD, SAMPLE_LOCAL_PLANE, RANDOM_UNIFORM_DENSITY, VOXEL_GRID_DILATION
+		float upsamplingRadius = 0.0f,   // SAMPLE_LOCAL_PLANE
+		float upsamplingStep = 0.0f,     // SAMPLE_LOCAL_PLANE
+		int pointDensity = 0,            // RANDOM_UNIFORM_DENSITY
+		float dilationVoxelSize = 1.0f,  // VOXEL_GRID_DILATION
+		int dilationIterations = 0);     // VOXEL_GRID_DILATION
+
+
 // Use version with groundNormalsUp as float. For forceGroundNormalsUp=true, set groundNormalsUp to 0.8f, otherwise set groundNormalsUp to 0.0f.
 RTABMAP_DEPRECATED LaserScan RTABMAP_CORE_EXPORT adjustNormalsToViewPoint(
 		const LaserScan & scan,
@@ -499,6 +533,12 @@ void RTABMAP_CORE_EXPORT adjustNormalsToViewPoints(
 		const pcl::PointCloud<pcl::PointXYZ>::Ptr & rawCloud,
 		const std::vector<int> & rawCameraIndices,
 		pcl::PointCloud<pcl::PointXYZINormal>::Ptr & cloud,
+		float groundNormalsUp = 0.0f);
+void RTABMAP_CORE_EXPORT adjustNormalsToViewPoints(
+		const std::map<int, Transform> & poses,
+		const pcl::PCLPointCloud2::Ptr & rawCloud,
+		const std::vector<int> & rawCameraIndices,
+		pcl::PCLPointCloud2::Ptr & cloud,
 		float groundNormalsUp = 0.0f);
 
 void RTABMAP_CORE_EXPORT adjustNormalsToViewPoints(

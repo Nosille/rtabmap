@@ -389,6 +389,8 @@ pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr RTABMAP_CORE_EXPORT removeNaNNormal
 		const pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr & cloud);
 pcl::PointCloud<pcl::PointXYZINormal>::Ptr RTABMAP_CORE_EXPORT removeNaNNormalsFromPointCloud(
 		const pcl::PointCloud<pcl::PointXYZINormal>::Ptr & cloud);
+pcl::PCLPointCloud2::Ptr RTABMAP_CORE_EXPORT removeNaNNormalsFromPointCloud(
+		const pcl::PCLPointCloud2::Ptr & cloud);
 
 /**
  * For convenience.

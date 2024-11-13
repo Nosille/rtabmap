@@ -2818,6 +2818,15 @@ pcl::PointCloud<pcl::Normal>::Ptr computeNormals(
 	pcl::IndicesPtr indices(new std::vector<int>);
 	return computeNormals(cloud, indices, searchK, searchRadius, viewPoint);
 }
+pcl::PCLPointCloud2::Ptr computeNormals(
+		const pcl::PCLPointCloud2::Ptr & cloud,
+		int searchK,
+		float searchRadius,
+		const Eigen::Vector3f & viewPoint)
+{
+	pcl::IndicesPtr indices(new std::vector<int>);
+	return computeNormals(cloud, indices, searchK, searchRadius, viewPoint);
+}
 pcl::PointCloud<pcl::Normal>::Ptr computeNormals(
 		const pcl::PointCloud<pcl::PointXYZ>::Ptr & cloud,
 		const pcl::IndicesPtr & indices,
@@ -2844,6 +2853,23 @@ pcl::PointCloud<pcl::Normal>::Ptr computeNormals(
 		const Eigen::Vector3f & viewPoint)
 {
 	return computeNormalsImpl<pcl::PointXYZI>(cloud, indices, searchK, searchRadius, viewPoint);
+}
+pcl::PCLPointCloud2::Ptr computeNormals(
+		const pcl::PCLPointCloud2::Ptr & cloud2,
+		const pcl::IndicesPtr & indices,
+		int searchK,
+		float searchRadius,
+		const Eigen::Vector3f & viewPoint)
+{
+	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud;
+	pcl::fromPCLPointCloud2(*cloud2, *cloud);
+
+	pcl::PointCloud<pcl::Normal>::Ptr normals = computeNormalsImpl<pcl::PointXYZ>(cloud, indices, searchK, searchRadius, viewPoint);
+	
+	pcl::PCLPointCloud2::Ptr normals2(new pcl::PCLPointCloud2);
+	pcl::toPCLPointCloud2(*normals, *normals2);
+  	
+	return normals2;
 }
 
 template<typename PointT>
@@ -3499,6 +3525,65 @@ pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr mls(
 	return cloud_with_normals;
 }
 
+pcl::PCLPointCloud2::Ptr mls(
+		const pcl::PCLPointCloud2::Ptr & cloud,
+		float searchRadius,
+		int polygonialOrder,
+		int upsamplingMethod, // NONE, DISTINCT_CLOUD, SAMPLE_LOCAL_PLANE, RANDOM_UNIFORM_DENSITY, VOXEL_GRID_DILATION
+		float upsamplingRadius,      // SAMPLE_LOCAL_PLANE
+		float upsamplingStep,        // SAMPLE_LOCAL_PLANE
+		int pointDensity,             // RANDOM_UNIFORM_DENSITY
+		float dilationVoxelSize,     // VOXEL_GRID_DILATION
+		int dilationIterations)       // VOXEL_GRID_DILATION
+{
+	pcl::IndicesPtr indices(new std::vector<int>);
+	return mls(cloud,
+			indices,
+			searchRadius,
+			polygonialOrder,
+			upsamplingMethod,
+			upsamplingRadius,
+			upsamplingStep,
+			pointDensity,
+			dilationVoxelSize,
+			dilationIterations);
+}
+
+pcl::PCLPointCloud2::Ptr mls(
+		const pcl::PCLPointCloud2::Ptr & cloud,
+		const pcl::IndicesPtr & indices,
+		float searchRadius,
+		int polygonialOrder,
+		int upsamplingMethod, // NONE, DISTINCT_CLOUD, SAMPLE_LOCAL_PLANE, RANDOM_UNIFORM_DENSITY, VOXEL_GRID_DILATION
+		float upsamplingRadius,      // SAMPLE_LOCAL_PLANE
+		float upsamplingStep,        // SAMPLE_LOCAL_PLANE
+		int pointDensity,             // RANDOM_UNIFORM_DENSITY
+		float dilationVoxelSize,     // VOXEL_GRID_DILATION
+		int dilationIterations)       // VOXEL_GRID_DILATION
+{
+	pcl::PCLPointCloud2::Ptr output(new pcl::PCLPointCloud2);
+	
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_pcl;
+	pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr cloud_normal;
+	pcl::fromPCLPointCloud2(*cloud, *cloud_pcl);
+	
+	cloud_normal = mls(cloud_pcl,
+			indices,
+			searchRadius,
+			polygonialOrder,
+			upsamplingMethod,
+			upsamplingRadius,
+			upsamplingStep,
+			pointDensity,
+			dilationVoxelSize,
+			dilationIterations);
+
+	toPCLPointCloud2(*cloud_normal, *output);
+	pcl::concatenateFields(*cloud, *output, *output);
+
+	return output;
+}
+
 LaserScan adjustNormalsToViewPoint(
 		const LaserScan & scan,
 		const Eigen::Vector3f & viewpoint,
@@ -3704,6 +3789,23 @@ void adjustNormalsToViewPoints(
 		float groundNormalsUp)
 {
 	adjustNormalsToViewPointsImpl<pcl::PointXYZINormal>(poses, rawCloud, rawCameraIndices, cloud, groundNormalsUp);
+}
+
+void adjustNormalsToViewPoints(
+		const std::map<int, Transform> & poses,
+		const pcl::PCLPointCloud2::Ptr & rawCloud2,
+		const std::vector<int> & rawCameraIndices,
+		pcl::PCLPointCloud2::Ptr & cloud2,
+		float groundNormalsUp)
+{
+	pcl::PointCloud<pcl::PointXYZ>::Ptr rawCloud;
+	pcl::fromPCLPointCloud2(*rawCloud2, *rawCloud);
+	
+	pcl::PointCloud<pcl::PointNormal>::Ptr normals;
+	adjustNormalsToViewPointsImpl<pcl::PointNormal>(poses, rawCloud, rawCameraIndices, normals, groundNormalsUp);
+
+	pcl::PCLPointCloud2::Ptr normals2(new pcl::PCLPointCloud2);
+	pcl::toPCLPointCloud2(*normals, *normals2);
 }
 
 void adjustNormalsToViewPoints(

@@ -35,6 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <pcl/common/common.h>
 #include <pcl/common/transforms.h>
 #include <pcl/correspondence.h>
+#include <pcl/common/io.h>
 
 namespace rtabmap {
 
@@ -68,6 +69,19 @@ void GainCompensator::feed(
 }
 
 void GainCompensator::feed(
+		const pcl::PCLPointCloud2::Ptr & cloudA,
+		const pcl::PCLPointCloud2::Ptr & cloudB,
+		const Transform & transformB)
+{
+	std::multimap<int, Link> links;
+	links.insert(std::make_pair(0, Link(0,1,Link::kUserClosure, transformB)));
+	std::map<int, pcl::PCLPointCloud2::Ptr> clouds;
+	clouds.insert(std::make_pair(0, cloudA));
+	clouds.insert(std::make_pair(1, cloudB));
+	feed(clouds, links);
+}
+
+void GainCompensator::feed(
 		const pcl::PointCloud<pcl::PointXYZRGB>::Ptr & cloudA,
 		const pcl::IndicesPtr & indicesA,
 		const pcl::PointCloud<pcl::PointXYZRGB>::Ptr & cloudB,
@@ -86,7 +100,33 @@ void GainCompensator::feed(
 }
 
 void GainCompensator::feed(
+		const pcl::PCLPointCloud2::Ptr & cloudA,
+		const pcl::IndicesPtr & indicesA,
+		const pcl::PCLPointCloud2::Ptr & cloudB,
+		const pcl::IndicesPtr & indicesB,
+		const Transform & transformB)
+{
+	std::multimap<int, Link> links;
+	links.insert(std::make_pair(0, Link(0,1,Link::kUserClosure, transformB)));
+	std::map<int, pcl::PCLPointCloud2::Ptr> clouds;
+	clouds.insert(std::make_pair(0, cloudA));
+	clouds.insert(std::make_pair(1, cloudB));
+	std::map<int, pcl::IndicesPtr> indices;
+	indices.insert(std::make_pair(0, indicesA));
+	indices.insert(std::make_pair(1, indicesB));
+	feed(clouds, indices, links);
+}
+
+void GainCompensator::feed(
 		const std::map<int, pcl::PointCloud<pcl::PointXYZRGB>::Ptr> & clouds,
+		const std::multimap<int, Link> & links)
+{
+	std::map<int, pcl::IndicesPtr> indices;
+	feed(clouds, indices, links);
+}
+
+void GainCompensator::feed(
+		const std::map<int, pcl::PCLPointCloud2::Ptr> & clouds,
 		const std::multimap<int, Link> & links)
 {
 	std::map<int, pcl::IndicesPtr> indices;
@@ -375,6 +415,49 @@ void GainCompensator::feed(
 {
 	feedImpl<pcl::PointXYZRGBNormal>(clouds, indices, links, maxCorrespondenceDistance_, minOverlap_, alpha_, beta_, gains_, idToIndex_);
 }
+
+void GainCompensator::feed(
+		const std::map<int, pcl::PCLPointCloud2::Ptr> & cloud2s,
+		const std::map<int, pcl::IndicesPtr> & indices,
+		const std::multimap<int, Link> & links)
+{
+	bool has_normals = false;
+	for (const auto &field : cloud2s.begin()->second->fields)
+		if (field.name == "normal_x" || field.name == "normal_y" || field.name == "normal_z")
+			has_normals = true;
+
+	if(has_normals)
+	{
+		std::map<int, pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr > clouds;
+
+		for(std::map<int, pcl::PCLPointCloud2::Ptr>::const_iterator iter=cloud2s.begin(); iter!=cloud2s.end(); ++iter)
+		{
+			pcl::PCLPointCloud2::Ptr pointCloud2 = iter->second;
+			pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr pointCloud(new pcl::PointCloud<pcl::PointXYZRGBNormal>);
+			pcl::fromPCLPointCloud2(*pointCloud2, *pointCloud);
+			
+			clouds.insert(std::make_pair(iter->first, pointCloud));
+		}
+		
+		feedImpl<pcl::PointXYZRGBNormal>(clouds, indices, links, maxCorrespondenceDistance_, minOverlap_, alpha_, beta_, gains_, idToIndex_);
+	}
+	else
+	{
+		std::map<int, pcl::PointCloud<pcl::PointXYZRGB>::Ptr > clouds;
+
+		for(std::map<int, pcl::PCLPointCloud2::Ptr>::const_iterator iter=cloud2s.begin(); iter!=cloud2s.end(); ++iter)
+		{
+			pcl::PCLPointCloud2::Ptr pointCloud2 = iter->second;
+			pcl::PointCloud<pcl::PointXYZRGB>::Ptr pointCloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+			pcl::fromPCLPointCloud2(*pointCloud2, *pointCloud);
+			
+			clouds.insert(std::make_pair(iter->first, pointCloud));
+		}
+		
+		feedImpl<pcl::PointXYZRGB>(clouds, indices, links, maxCorrespondenceDistance_, minOverlap_, alpha_, beta_, gains_, idToIndex_);
+	}
+}
+
 void GainCompensator::feed(
 		const std::map<int, std::pair<pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr, pcl::IndicesPtr> > & cloudsIndices,
 		const std::multimap<int, Link> & links)
@@ -387,6 +470,20 @@ void GainCompensator::feed(
 		indices.insert(std::make_pair(iter->first, iter->second.second));
 	}
 	feedImpl<pcl::PointXYZRGBNormal>(clouds, indices, links, maxCorrespondenceDistance_, minOverlap_, alpha_, beta_, gains_, idToIndex_);
+}
+
+void GainCompensator::feed(
+		const std::map<int, std::pair<pcl::PCLPointCloud2::Ptr, pcl::IndicesPtr> > & cloudsIndices,
+		const std::multimap<int, Link> & links)
+{
+	std::map<int, pcl::PCLPointCloud2::Ptr> clouds;
+	std::map<int, pcl::IndicesPtr> indices;
+	for(std::map<int, std::pair<pcl::PCLPointCloud2::Ptr, pcl::IndicesPtr> >::const_iterator iter=cloudsIndices.begin(); iter!=cloudsIndices.end(); ++iter)
+	{
+		clouds.insert(std::make_pair(iter->first, iter->second.first));
+		indices.insert(std::make_pair(iter->first, iter->second.second));
+	}
+	feed(clouds, indices, links);
 }
 
 template<typename PointT>
@@ -431,6 +528,16 @@ void GainCompensator::apply(
 	pcl::IndicesPtr indices(new std::vector<int>);
 	apply(id, cloud, indices, rgb);
 }
+
+void GainCompensator::apply(
+		int id,
+		pcl::PCLPointCloud2::Ptr & cloud,
+		bool rgb) const
+{
+	pcl::IndicesPtr indices(new std::vector<int>);
+	apply(id, cloud, indices, rgb);
+}
+
 void GainCompensator::apply(
 		int id,
 		pcl::PointCloud<pcl::PointXYZRGB>::Ptr & cloud,
@@ -440,6 +547,7 @@ void GainCompensator::apply(
 	UASSERT_MSG(uContains(idToIndex_, id), uFormat("id=%d idToIndex_.size()=%d", id, (int)idToIndex_.size()).c_str());
 	applyImpl<pcl::PointXYZRGB>(idToIndex_.at(id), cloud, indices, gains_, rgb);
 }
+
 void GainCompensator::apply(
 		int id,
 		pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr & cloud,
@@ -448,6 +556,25 @@ void GainCompensator::apply(
 {
 	UASSERT_MSG(uContains(idToIndex_, id), uFormat("id=%d idToIndex_.size()=%d", id, (int)idToIndex_.size()).c_str());
 	applyImpl<pcl::PointXYZRGBNormal>(idToIndex_.at(id), cloud, indices, gains_, rgb);
+}
+
+void GainCompensator::apply(
+		int id,
+		pcl::PCLPointCloud2::Ptr & cloud2,
+		const pcl::IndicesPtr & indices,
+		bool rgb) const
+{
+	UASSERT_MSG(uContains(idToIndex_, id), uFormat("id=%d idToIndex_.size()=%d", id, (int)idToIndex_.size()).c_str());
+	
+	pcl::PCLPointCloud2::Ptr output(new pcl::PCLPointCloud2);
+
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+	pcl::fromPCLPointCloud2(*cloud2, *cloud);
+		
+	applyImpl<pcl::PointXYZRGB>(idToIndex_.at(id), cloud, indices, gains_, rgb);
+
+	pcl::toPCLPointCloud2(*cloud, *output);
+	pcl::concatenateFields(*output, *cloud2, *cloud2);
 }
 
 void GainCompensator::apply(

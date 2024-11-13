@@ -1082,6 +1082,55 @@ pcl::PointCloud<pcl::PointXYZINormal>::Ptr removeNaNNormalsFromPointCloud(
 {
 	return removeNaNNormalsFromPointCloudImpl<pcl::PointXYZINormal>(cloud);
 }
+pcl::PCLPointCloud2::Ptr removeNaNNormalsFromPointCloud(
+		const pcl::PCLPointCloud2::Ptr & cloud)
+{
+	pcl::PCLPointCloud2::Ptr output(new pcl::PCLPointCloud2);
+	output->fields = cloud->fields;
+	output->header = cloud->header;
+	output->height = 1;
+	output->point_step = cloud->point_step;
+	output->is_dense = true;
+	output->data.resize(cloud->row_step*cloud->height);
+
+	int offset_x=0;
+	int offset_y=0;
+	int offset_z=0;
+	for(size_t i=0; i<cloud->fields.size(); ++i)
+	{
+		if(cloud->fields[i].name.compare("normal_x") == 0)
+			offset_x = cloud->fields[i].offset;
+		if(cloud->fields[i].name.compare("normal_y") == 0)
+			offset_y = cloud->fields[i].offset;
+		if(cloud->fields[i].name.compare("normal_z") == 0)
+			offset_z = cloud->fields[i].offset;			
+	}
+
+	std::uint8_t* output_data = reinterpret_cast<std::uint8_t*>(&output->data[0]);
+
+	size_t oi = 0;
+	for (size_t row = 0; row < cloud->height; ++row)
+	{
+		const std::uint8_t* row_data = &cloud->data[row * cloud->row_step];
+		for (size_t col = 0; col < cloud->width; ++col)
+		{
+			const std::uint8_t* msg_data = row_data + col * cloud->point_step;
+			const float * x = (const float*)&msg_data[offset_x];
+			const float * y = (const float*)&msg_data[offset_y];
+			const float * z = (const float*)&msg_data[offset_z];
+			if(uIsFinite(*x) && uIsFinite(*y) && uIsFinite(*z))
+			{
+				memcpy (output_data, msg_data, cloud->point_step);
+				output_data += cloud->point_step;
+				++oi;
+			}
+		}
+	}
+	output->width = oi;
+	output->row_step = output->width*output->point_step;
+	output->data.resize(output->row_step);
+	return output;
+}
 
 
 pcl::IndicesPtr radiusFiltering(const pcl::PointCloud<pcl::PointXYZ>::Ptr & cloud, float radiusSearch, int minNeighborsInRadius)
