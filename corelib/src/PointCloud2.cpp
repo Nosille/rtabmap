@@ -25,52 +25,85 @@ ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-#ifndef RTABMAP_CORE_EXPORTDIALOG_H_
-#define RTABMAP_CORE_EXPORTDIALOG_H_
-
-#include "rtabmap/gui/rtabmap_gui_export.h" // DLL export/import defines
-
-#include <QDialog>
-#include <QSettings>
-
-class Ui_ExportDialog;
+#include <rtabmap/core/PointCloud2.h>
+#include <rtabmap/utilite/ULogger.h>
+#include <rtabmap/utilite/UConversion.h>
 
 namespace rtabmap {
 
-class RTABMAP_GUI_EXPORT ExportDialog : public QDialog
+bool PointCloud2::isCloudHasNormals()
 {
-	Q_OBJECT
-
-public:
-	ExportDialog(QWidget * parent = 0);
-
-	virtual ~ExportDialog();
-
-	void saveSettings(QSettings & settings, const QString & group) const;
-	void loadSettings(QSettings & settings, const QString & group);
-
-	QString outputPath() const;
-	int framesIgnored() const;
-	double targetFramerate() const;
-	int sessionExported() const;
-	bool isRgbExported() const;
-	bool isDepthExported() const;
-	bool isDepth2dExported() const;
-	bool isOdomExported() const;
-	bool isPointCloud2Exported() const;
-	bool isUserDataExported() const;
-
-Q_SIGNALS:
-	void configChanged();
-
-private Q_SLOTS:
-	void getPath();
-	void restoreDefaults();
-
-private:
-	Ui_ExportDialog * _ui;
-};
-
+	return hasNormals();
+}
+bool PointCloud2::isCloudHasRGB()
+{
+	return hasRGB();
+}
+bool PointCloud2::isCloudHasIntensity()
+{
+	return hasIntensity();
 }
 
-#endif /* EXPORTDIALOG_H_ */
+PointCloud2::PointCloud2() :
+		localTransform_(Transform::getIdentity())
+{
+}
+
+PointCloud2::PointCloud2(
+		const PointCloud2 & pointcloud,
+		const Transform & localTransform)
+{
+	init(pointcloud.cloud(), localTransform);
+}
+
+PointCloud2::PointCloud2(
+		const pcl::PCLPointCloud2 & cloud,
+		const Transform & localTransform)
+{
+	init(cloud, localTransform);
+}
+
+void PointCloud2::init(
+		const pcl::PCLPointCloud2 & cloud,
+		const Transform & localTransform)
+{
+	UASSERT(!localTransform.isNull());
+
+	cloud_ = cloud;
+	localTransform_ = localTransform;
+}
+
+PointCloud2 PointCloud2::clone() const
+{
+	return PointCloud2(pcl::PCLPointCloud2(cloud_), localTransform_.clone());
+}
+
+PointCloud2 & PointCloud2::operator+=(const PointCloud2 & cloud)
+{
+	*this = *this + cloud;
+	return *this;
+}
+
+PointCloud2 PointCloud2::operator+(const PointCloud2 & cloud)
+{
+	PointCloud2 dest;
+	if(!cloud.empty())
+	{
+		if(this->empty())
+		{
+			dest = cloud.clone();
+		}
+		else
+		{
+			pcl::PCLPointCloud2 destCloud = this->cloud_ + cloud.cloud_;
+			dest = PointCloud2(destCloud);
+		}
+	}
+	else
+	{
+		dest = this->clone();
+	}
+	return dest;
+}
+
+}

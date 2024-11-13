@@ -69,6 +69,7 @@ SET(SRC_FILES
     Compression.cpp
     Link.cpp
     LaserScan.cpp
+	PointCloud2.cpp
     
     Optimizer.cpp
     optimizer/OptimizerTORO.cpp
