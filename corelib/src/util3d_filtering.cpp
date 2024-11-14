@@ -423,12 +423,67 @@ LaserScan downsample(
 	}
 }
 template<typename PointT>
-typename pcl::PointCloud<PointT>::Ptr downsampleImpl(
+pcl::IndicesPtr downsampleIndex(
 		const typename pcl::PointCloud<PointT>::Ptr & cloud,
 		int step)
 {
 	UASSERT(step > 0);
+	pcl::IndicesPtr indices(new std::vector<int>);	
+	if(cloud->height > 1 && cloud->height < cloud->width/4)
+	{
+		// Assuming ouster point cloud (e.g, 2048x64),
+		// for which the lower dimension is the number of rings.
+		// Downsample each ring by the step.
+		// Example data packed:
+		// <ringA-1, ringB-1, ringC-1, ringD-1;
+		//  ringA-2, ringB-2, ringC-2, ringD-2;
+		//  ringA-3, ringB-3, ringC-3, ringD-3;
+		//  ringA-4, ringB-4, ringC-4, ringD-4>
+		unsigned int rings = cloud->height<cloud->width?cloud->height:cloud->width;
+		unsigned int pts = cloud->height>cloud->width?cloud->height:cloud->width;
+
+		for(unsigned int j=0; j<rings; ++j)
+		{
+			for(unsigned int i=0; i<pts/step; ++i)
+			{
+				indices->push_back(i*step*rings + j);
+			}
+		}
+
+	}
+	else if(cloud->height > 1)
+	{
+		// assume depth image (e.g., 640x480), downsample like an image
+		UASSERT_MSG(cloud->height % step == 0 && cloud->width % step == 0,
+				uFormat("Decimation of depth images should be exact! (decimation=%d, size=%dx%d)",
+				step, cloud->width, cloud->height).c_str());
+
+		for(unsigned int j=0; j<cloud->height/step; ++j)
+		{
+			for(unsigned int i=0; i<cloud->width/step; ++i)
+			{
+				indices->push_back(j*cloud->width/step*step + i*step);
+			}
+		}
+	}
+	else
+	{
+	    for(unsigned int i=0; i<cloud->size()-step+1; i+=step)
+		{
+			indices->push_back(i);
+		}
+	}
+
+	return indices;
+}
+template<typename PointT>
+typename pcl::PointCloud<PointT>::Ptr downsampleImpl(
+		const typename pcl::PointCloud<PointT>::Ptr & cloud,
+		int step)
+{
+	pcl::IndicesPtr indices(new std::vector<int>);	
 	typename pcl::PointCloud<PointT>::Ptr output(new pcl::PointCloud<PointT>);
+	
 	if(step <= 1 || (int)cloud->size() <= step)
 	{
 		// no sampling
@@ -436,63 +491,17 @@ typename pcl::PointCloud<PointT>::Ptr downsampleImpl(
 	}
 	else
 	{
-		if(cloud->height > 1 && cloud->height < cloud->width/4)
-		{
-			// Assuming ouster point cloud (e.g, 2048x64),
-			// for which the lower dimension is the number of rings.
-			// Downsample each ring by the step.
-			// Example data packed:
-			// <ringA-1, ringB-1, ringC-1, ringD-1;
-			//  ringA-2, ringB-2, ringC-2, ringD-2;
-			//  ringA-3, ringB-3, ringC-3, ringD-3;
-			//  ringA-4, ringB-4, ringC-4, ringD-4>
-			unsigned int rings = cloud->height<cloud->width?cloud->height:cloud->width;
-			unsigned int pts = cloud->height>cloud->width?cloud->height:cloud->width;
-			unsigned int finalSize = rings * pts/step;
-			output->resize(finalSize);
-			output->width =  rings;
-			output->height = pts/step;
+		indices = downsampleIndex<PointT>(cloud, step);
 
-			for(unsigned int j=0; j<rings; ++j)
-			{
-				for(unsigned int i=0; i<output->height; ++i)
-				{
-					(*output)[i*rings + j] = cloud->at(i*step*rings + j);
-				}
-			}
-
-		}
-		else if(cloud->height > 1)
-		{
-			// assume depth image (e.g., 640x480), downsample like an image
-			UASSERT_MSG(cloud->height % step == 0 && cloud->width % step == 0,
-					uFormat("Decimation of depth images should be exact! (decimation=%d, size=%dx%d)",
-					step, cloud->width, cloud->height).c_str());
-
-			int finalSize = cloud->height/step * cloud->width/step;
-			output->resize(finalSize);
-			output->width = cloud->width/step;
-			output->height = cloud->height/step;
-
-			for(unsigned int j=0; j<output->height; ++j)
-			{
-				for(unsigned int i=0; i<output->width; ++i)
-				{
-					output->at(j*output->width + i) = cloud->at(j*output->width*step + i*step);
-				}
-			}
-		}
-		else
-		{
-			int finalSize = int(cloud->size())/step;
-			output->resize(finalSize);
-			int oi = 0;
-			for(unsigned int i=0; i<cloud->size()-step+1; i+=step)
-			{
-				(*output)[oi++] = cloud->at(i);
-			}
-		}
+		// Create the filtering object
+		pcl::ExtractIndices<PointT> extract;
+		// Extract the inliers
+		extract.setInputCloud(cloud);
+		extract.setIndices(indices);
+		extract.setNegative(false);
+		extract.filter(*output);	
 	}
+
 	return output;
 }
 pcl::PointCloud<pcl::PointXYZ>::Ptr downsample(const pcl::PointCloud<pcl::PointXYZ>::Ptr & cloud, int step)
@@ -518,6 +527,34 @@ pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr downsample(const pcl::PointCloud<pc
 pcl::PointCloud<pcl::PointXYZINormal>::Ptr downsample(const pcl::PointCloud<pcl::PointXYZINormal>::Ptr & cloud, int step)
 {
 	return downsampleImpl<pcl::PointXYZINormal>(cloud, step);
+}
+pcl::PCLPointCloud2::Ptr downsample(const pcl::PCLPointCloud2::Ptr & cloud, int step)
+{
+	pcl::IndicesPtr indices(new std::vector<int>);	
+	pcl::PCLPointCloud2::Ptr output(new pcl::PCLPointCloud2);
+
+	pcl::PointCloud<pcl::PointXYZ>::Ptr xyz(new pcl::PointCloud<pcl::PointXYZ>);	
+	fromPCLPointCloud2(*cloud, *xyz);
+
+	if(step <= 1 || (int)xyz->size() <= step)
+	{
+		// no sampling
+		*output = *cloud;
+	}
+	else
+	{
+		indices = downsampleIndex<pcl::PointXYZ>(xyz, step);
+
+		// Create the filtering object
+    	pcl::ExtractIndices<pcl::PCLPointCloud2> extract;
+		// Extract the inliers
+		extract.setInputCloud(cloud);
+		extract.setIndices(indices);
+		extract.setNegative(false);
+    	extract.filter(*output);			
+	}
+		
+	return output;
 }
 
 template<typename PointT>
@@ -634,6 +671,98 @@ pcl::PointCloud<pcl::PointXYZINormal>::Ptr voxelize(const pcl::PointCloud<pcl::P
 {
 	return voxelizeImpl<pcl::PointXYZINormal>(cloud, indices, voxelSize);
 }
+pcl::PCLPointCloud2::Ptr voxelize(
+		const pcl::PCLPointCloud2::Ptr & cloud, 
+		const pcl::IndicesPtr & indices,
+		float voxelSize, 
+		int level = 0)
+{
+	UASSERT(voxelSize > 0.0f);
+	pcl::PCLPointCloud2::Ptr output(new pcl::PCLPointCloud2);
+	pcl::PointCloud<pcl::PointXYZ> xyz;
+	fromPCLPointCloud2(*cloud, xyz);	
+
+	if((cloud->is_dense && cloud->width && cloud->height) || (!cloud->is_dense && !indices->empty()))
+	{
+		Eigen::Vector4f min_p, max_p;
+		// Get the minimum and maximum dimensions
+		if(indices->empty())
+			pcl::getMinMax3D(xyz, min_p, max_p);
+		else
+			pcl::getMinMax3D(xyz, *indices, min_p, max_p);
+
+		// Check that the leaf size is not too small, given the size of the data
+		float inverseVoxelSize = 1.0f/voxelSize;
+		std::int64_t dx = static_cast<std::int64_t>((max_p[0] - min_p[0]) * inverseVoxelSize)+1;
+		std::int64_t dy = static_cast<std::int64_t>((max_p[1] - min_p[1]) * inverseVoxelSize)+1;
+		std::int64_t dz = static_cast<std::int64_t>((max_p[2] - min_p[2]) * inverseVoxelSize)+1;
+
+		if ((dx*dy*dz) > static_cast<std::int64_t>(std::numeric_limits<std::int32_t>::max()))
+		{
+			UWARN("Leaf size is too small for the input dataset. Integer indices would overflow. "
+				  "We will split space to be able to voxelize (lvl=%d cloud=%d min=[%f %f %f] max=[%f %f %f] voxel=%f).",
+				  level,
+				  (int)(indices->empty()?cloud->width*cloud->height:indices->size()),
+				  min_p[0], min_p[1], min_p[2],
+				  max_p[0], max_p[1], max_p[2],
+				  voxelSize);
+			pcl::IndicesPtr denseIndices;
+			if(indices->empty())
+			{
+				size_t size = cloud->height*cloud->width;
+				denseIndices.reset(new std::vector<int>(size));
+				for(size_t i=0; i<size; ++i)
+				{
+					denseIndices->at(i) = i;
+				}
+			}
+
+			Eigen::Vector4f mid = (max_p-min_p)/2.0f;
+			int zMax = max_p[2]-min_p[2] < 10?1:2; // do quad tree for 2D maps
+			for(int x=0; x<2; ++x)
+			{
+				for(int y=0; y<2; ++y)
+				{
+					for(int z=0; z<zMax; ++z)
+					{
+						Eigen::Vector4f m = min_p+Eigen::Vector4f(mid[0]*x,mid[1]*y,mid[2]*z,0);
+						Eigen::Vector4f mx = m+mid;
+						if(zMax==1)
+						{
+							mx[2] = max_p[2];
+						}
+						pcl::IndicesPtr ind = util3d::cropBox(cloud, denseIndices.get()?denseIndices:indices, m, mx);
+						if(!ind->empty())
+						{
+							// extract indices to avoid high memory usage
+							*output+=*voxelize(cloud, ind, voxelSize, level+1);
+						}
+					}
+				}
+			}
+		}
+		else
+		{
+			pcl::VoxelGrid<pcl::PCLPointCloud2> filter;
+			filter.setLeafSize(voxelSize, voxelSize, voxelSize);
+			filter.setInputCloud(cloud);
+#ifdef WIN32
+			// Pre-allocating the cloud helps to avoid crash when freeing memory allocated inside pcl library
+			output->resize(cloud->size());
+#endif
+			if(!indices->empty())
+			{
+				filter.setIndices(indices);
+			}
+			filter.filter(*output);
+		}
+	}
+	else if(cloud->width && cloud->height && !cloud->is_dense && indices->size() == 0)
+	{
+		UWARN("Cannot voxelize a not dense (organized) cloud with empty indices! (input=%d pts). Returning empty cloud!", (int)(cloud->width*cloud->height));
+	}
+	return output;
+}
 
 pcl::PointCloud<pcl::PointXYZ>::Ptr voxelize(const pcl::PointCloud<pcl::PointXYZ>::Ptr & cloud, float voxelSize)
 {
@@ -665,6 +794,11 @@ pcl::PointCloud<pcl::PointXYZINormal>::Ptr voxelize(const pcl::PointCloud<pcl::P
 	pcl::IndicesPtr indices(new std::vector<int>);
 	return voxelize(cloud, indices, voxelSize);
 }
+pcl::PCLPointCloud2::Ptr voxelize(const pcl::PCLPointCloud2::Ptr & cloud, float voxelSize)
+{   	
+	pcl::IndicesPtr indices(new std::vector<int>);  	
+	return voxelize(cloud, indices, voxelSize);  	
+}   
 
 template<typename PointT>
 typename pcl::PointCloud<PointT>::Ptr randomSamplingImpl(
@@ -702,6 +836,17 @@ pcl::PointCloud<pcl::PointXYZI>::Ptr randomSampling(const pcl::PointCloud<pcl::P
 pcl::PointCloud<pcl::PointXYZINormal>::Ptr randomSampling(const pcl::PointCloud<pcl::PointXYZINormal>::Ptr & cloud, int samples)
 {
 	return randomSamplingImpl<pcl::PointXYZINormal>(cloud, samples);
+}
+pcl::PCLPointCloud2::Ptr randomSampling(const pcl::PCLPointCloud2::Ptr & cloud, int samples)
+{
+	UASSERT(samples > 0);
+	pcl::PCLPointCloud2::Ptr output(new pcl::PCLPointCloud2);
+	pcl::RandomSample<pcl::PCLPointCloud2> filter;
+	filter.setSample(samples);
+	filter.setSeed (std::rand ());
+	filter.setInputCloud(cloud);
+	filter.filter(*output);
+	return output;
 }
 
 template<typename PointT>
@@ -751,6 +896,21 @@ pcl::IndicesPtr passThrough(const pcl::PointCloud<pcl::PointXYZINormal>::Ptr & c
 {
 	return passThroughImpl<pcl::PointXYZINormal>(cloud, indices, axis, min, max, negative);
 }
+pcl::IndicesPtr passThrough(const pcl::PCLPointCloud2::Ptr & cloud, const pcl::IndicesPtr & indices, const std::string & axis, float min, float max, bool negative)
+{
+	UASSERT_MSG(max > min, uFormat("cloud=%d, max=%f min=%f axis=%s", (int)(cloud->height*cloud->width), max, min, axis.c_str()).c_str());
+	UASSERT(axis.compare("x") == 0 || axis.compare("y") == 0 || axis.compare("z") == 0);
+
+	pcl::IndicesPtr output(new std::vector<int>);
+	pcl::PassThrough<pcl::PCLPointCloud2> filter;
+	filter.setNegative(negative);
+	filter.setFilterFieldName(axis);
+	filter.setFilterLimits(min, max);
+	filter.setInputCloud(cloud);
+	filter.setIndices(indices);
+	filter.filter(*output);
+	return output;
+}
 
 template<typename PointT>
 typename pcl::PointCloud<PointT>::Ptr passThroughImpl(
@@ -795,6 +955,20 @@ pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr passThrough(const pcl::PointCloud<p
 pcl::PointCloud<pcl::PointXYZINormal>::Ptr passThrough(const pcl::PointCloud<pcl::PointXYZINormal>::Ptr & cloud, const std::string & axis, float min, float max, bool negative)
 {
 	return passThroughImpl<pcl::PointXYZINormal>(cloud, axis, min ,max, negative);
+}
+pcl::PCLPointCloud2::Ptr passThrough(const pcl::PCLPointCloud2::Ptr & cloud, const std::string & axis, float min, float max, bool negative)
+{
+	UASSERT_MSG(max > min, uFormat("cloud=%d, max=%f min=%f axis=%s", (int)(cloud->height*cloud->width), max, min, axis.c_str()).c_str());
+	UASSERT(axis.compare("x") == 0 || axis.compare("y") == 0 || axis.compare("z") == 0);
+
+	pcl::PCLPointCloud2::Ptr output(new pcl::PCLPointCloud2);
+	pcl::PassThrough<pcl::PCLPointCloud2> filter;
+	filter.setNegative(negative);
+	filter.setFilterFieldName(axis);
+	filter.setFilterLimits(min, max);
+	filter.setInputCloud(cloud);
+	filter.filter(*output);
+	return output;
 }
 
 template<typename PointT>
@@ -1163,6 +1337,11 @@ pcl::IndicesPtr radiusFiltering(const pcl::PointCloud<pcl::PointXYZINormal>::Ptr
 	pcl::IndicesPtr indices(new std::vector<int>);
 	return radiusFiltering(cloud, indices, radiusSearch, minNeighborsInRadius);
 }
+pcl::IndicesPtr radiusFiltering(const pcl::PCLPointCloud2::Ptr & cloud2, float radiusSearch, int minNeighborsInRadius)
+{
+	pcl::IndicesPtr indices(new std::vector<int>);
+	return radiusFiltering(cloud2, indices, radiusSearch, minNeighborsInRadius);
+}
 
 template<typename PointT>
 pcl::IndicesPtr radiusFilteringImpl(
@@ -1234,6 +1413,13 @@ pcl::IndicesPtr radiusFiltering(const pcl::PointCloud<pcl::PointXYZI>::Ptr & clo
 pcl::IndicesPtr radiusFiltering(const pcl::PointCloud<pcl::PointXYZINormal>::Ptr & cloud, const pcl::IndicesPtr & indices, float radiusSearch, int minNeighborsInRadius)
 {
 	return radiusFilteringImpl<pcl::PointXYZINormal>(cloud, indices, radiusSearch, minNeighborsInRadius);
+}
+pcl::IndicesPtr radiusFiltering(const pcl::PCLPointCloud2::Ptr & cloud, const pcl::IndicesPtr & indices, float radiusSearch, int minNeighborsInRadius)
+{
+	pcl::PointCloud<pcl::PointXYZ>::Ptr xyz(new pcl::PointCloud<pcl::PointXYZ>);	
+	fromPCLPointCloud2(*cloud, *xyz);
+
+	return radiusFilteringImpl<pcl::PointXYZ>(xyz, indices, radiusSearch, minNeighborsInRadius);
 }
 
 pcl::IndicesPtr proportionalRadiusFiltering(
@@ -1595,6 +1781,18 @@ pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr subtractFiltering(
 	pcl::copyPointCloud(*cloud, *indicesOut, *out);
 	return out;
 }
+pcl::PCLPointCloud2::Ptr subtractFiltering(
+		const pcl::PCLPointCloud2::Ptr & cloud,
+		const pcl::PCLPointCloud2::Ptr & substractCloud,
+		float radiusSearch,
+		int minNeighborsInRadius)
+{
+	pcl::IndicesPtr indices(new std::vector<int>);
+	pcl::IndicesPtr indicesOut = subtractFiltering(cloud, indices, substractCloud, indices, radiusSearch, minNeighborsInRadius);
+	pcl::PCLPointCloud2::Ptr out(new pcl::PCLPointCloud2);
+	pcl::copyPointCloud(*cloud, *indicesOut, *out);
+	return out;
+}
 
 template<typename PointT>
 pcl::IndicesPtr subtractFilteringImpl(
@@ -1757,6 +1955,19 @@ pcl::IndicesPtr subtractFiltering(
 		int minNeighborsInRadius)
 {
 	return subtractFilteringImpl<pcl::PointXYZRGBNormal>(cloud, indices, substractCloud, substractIndices, radiusSearch, maxAngle, minNeighborsInRadius);
+}
+pcl::IndicesPtr subtractFiltering(
+		const pcl::PCLPointCloud2::Ptr & cloud,
+		const pcl::IndicesPtr & indices,
+		const pcl::PCLPointCloud2::Ptr & substractCloud,
+		const pcl::IndicesPtr & substractIndices,
+		float radiusSearch,
+		int minNeighborsInRadius)
+{
+	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_xyz, substractCloud_xyz;
+	fromPCLPointCloud2(*cloud, *cloud_xyz);
+	fromPCLPointCloud2(*cloud, *substractCloud_xyz);
+	return subtractFilteringImpl<pcl::PointXYZ>(cloud_xyz, indices, substractCloud_xyz, substractIndices, radiusSearch, minNeighborsInRadius);
 }
 
 pcl::IndicesPtr subtractAdaptiveFiltering(
@@ -2197,6 +2408,36 @@ pcl::IndicesPtr normalFiltering(
 	return normalFilteringImpl<pcl::PointXYZINormal>(cloud, indices, angleMax, normal, viewpoint, groundNormalsUp);
 }
 
+pcl::IndicesPtr normalFiltering(
+		const pcl::PCLPointCloud2::Ptr & cloud,
+		const pcl::IndicesPtr & indices,
+		float angleMax,
+		const Eigen::Vector4f & normal,
+		int normalKSearch,
+		const Eigen::Vector4f & viewpoint,
+		float groundNormalsUp)
+{
+	bool has_normals = false;
+	for (const auto &field : cloud->fields)
+		if (field.name == "normal_x" || field.name == "normal_y" || field.name == "normal_z")
+			has_normals = true;
+
+	if(has_normals)
+	{
+		pcl::PointCloud<pcl::PointNormal>::Ptr pointnormal(new pcl::PointCloud<pcl::PointNormal>);	
+		fromPCLPointCloud2(*cloud, *pointnormal);
+		
+		return normalFilteringImpl<pcl::PointNormal>(pointnormal, indices, angleMax, normal, viewpoint, groundNormalsUp);
+	}
+	else
+	{
+		pcl::PointCloud<pcl::PointXYZ>::Ptr xyz(new pcl::PointCloud<pcl::PointXYZ>);	
+		fromPCLPointCloud2(*cloud, *xyz);
+		
+		return normalFilteringImpl<pcl::PointXYZ>(xyz, indices, angleMax, normal, normalKSearch, viewpoint, groundNormalsUp);
+	}
+}
+
 std::vector<pcl::IndicesPtr> extractClusters(
 		const pcl::PointCloud<pcl::PointXYZ>::Ptr & cloud,
 		float clusterTolerance,
@@ -2369,6 +2610,13 @@ pcl::IndicesPtr extractIndices(const pcl::PointCloud<pcl::PointXYZINormal>::Ptr 
 {
 	return extractIndicesImpl<pcl::PointXYZINormal>(cloud, indices, negative);
 }
+pcl::IndicesPtr extractIndices(const pcl::PCLPointCloud2::Ptr & cloud, const pcl::IndicesPtr & indices, bool negative)
+{
+	pcl::PointCloud<pcl::PointXYZ>::Ptr xyz(new pcl::PointCloud<pcl::PointXYZ>);	
+	fromPCLPointCloud2(*cloud, *xyz);
+	
+	return extractIndicesImpl<pcl::PointXYZ>(xyz, indices, negative);
+}
 
 template<typename PointT>
 typename pcl::PointCloud<PointT>::Ptr extractIndicesImpl(
@@ -2380,6 +2628,17 @@ typename pcl::PointCloud<PointT>::Ptr extractIndicesImpl(
 	typename pcl::PointCloud<PointT>::Ptr output(new pcl::PointCloud<PointT>);
 	pcl::ExtractIndices<PointT> extract;
 	extract.setInputCloud (cloud);
+	extract.setIndices(indices);
+	extract.setNegative(negative);
+	extract.setKeepOrganized(keepOrganized);
+	extract.filter(*output);
+	return output;
+}
+pcl::PCLPointCloud2::Ptr extractIndices(const pcl::PCLPointCloud2::Ptr & cloud, const pcl::IndicesPtr & indices, bool negative, bool keepOrganized)
+{
+	pcl::PCLPointCloud2::Ptr output(new pcl::PCLPointCloud2);
+	pcl::ExtractIndices<pcl::PCLPointCloud2> extract;
+	extract.setInputCloud(cloud);
 	extract.setIndices(indices);
 	extract.setNegative(negative);
 	extract.setKeepOrganized(keepOrganized);
