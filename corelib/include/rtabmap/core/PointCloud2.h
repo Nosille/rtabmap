@@ -46,7 +46,7 @@ public:
 public:
 	PointCloud2();
 	PointCloud2(const rtabmap::PointCloud2 & pointcloud,
-			const Transform & localTransform = Transform::getIdentity());
+			const Transform & localTransform);
 	PointCloud2(const pcl::PCLPointCloud2 & cloud,
 			const Transform & localTransform = Transform::getIdentity());
 

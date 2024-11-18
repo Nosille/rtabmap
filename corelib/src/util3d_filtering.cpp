@@ -394,6 +394,79 @@ LaserScan rangeFiltering(
 
 	return scan;
 }
+PointCloud2 rangeFiltering(
+		const PointCloud2 & pointCloud2,
+		float rangeMin,
+		float rangeMax)
+{
+	UASSERT(rangeMin >=0.0f && rangeMax>=0.0f);
+	
+	pcl::PCLPointCloud2::Ptr input = pcl::make_shared<pcl::PCLPointCloud2>(pointCloud2.cloud());
+	pcl::PCLPointCloud2 output;
+
+	if (input->width == 0 || input->height == 0)
+      return pointCloud2;
+
+	// Min Range
+    if (rangeMin > 0)
+    {
+      pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_xyz(new pcl::PointCloud<pcl::PointXYZ>);
+      pcl::fromPCLPointCloud2(*input, *cloud_xyz);
+      
+      pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
+      kdtree.setInputCloud(cloud_xyz);
+      
+      // neighbors within radius search
+	  pcl::PointXYZ search_point(0,0,0);
+      std::vector<int> pointIdxRadiusSearch;
+      std::vector<float> pointRadiusSquaredDistance;
+      int inlier_count = kdtree.radiusSearch(search_point, rangeMin, pointIdxRadiusSearch, pointRadiusSquaredDistance);
+      if (inlier_count > 0)
+      {
+        pcl::PointIndices::Ptr inliers(new pcl::PointIndices());
+        inliers->indices = pointIdxRadiusSearch;
+
+        // Create the filtering object
+        pcl::ExtractIndices<pcl::PCLPointCloud2> extract;
+        // Extract the inliers
+        extract.setInputCloud(input);
+        extract.setIndices(inliers);
+        extract.setNegative(true);
+        extract.filter(output);
+      }
+    }
+
+    // Max Range
+    if (rangeMax > 0)
+    {
+      pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_xyz(new pcl::PointCloud<pcl::PointXYZ>);
+      pcl::fromPCLPointCloud2(*input, *cloud_xyz);
+      
+      pcl::KdTreeFLANN<pcl::PointXYZ> kdtree;
+      kdtree.setInputCloud(cloud_xyz);
+      
+      // neighbors within radius search
+	  pcl::PointXYZ search_point(0,0,0);
+      std::vector<int> pointIdxRadiusSearch;
+      std::vector<float> pointRadiusSquaredDistance;
+      int inlier_count = kdtree.radiusSearch(search_point, rangeMax, pointIdxRadiusSearch, pointRadiusSquaredDistance);
+      if (inlier_count > 0)
+      {
+        pcl::PointIndices::Ptr inliers(new pcl::PointIndices());
+        inliers->indices = pointIdxRadiusSearch;
+
+        // Create the filtering object
+        pcl::ExtractIndices<pcl::PCLPointCloud2> extract;
+        // Extract the inliers
+        extract.setInputCloud(input);
+        extract.setIndices(inliers);
+        extract.setNegative(false);
+        extract.filter(output);
+      }
+    }
+
+	return PointCloud2(output, pointCloud2.localTransform());
+}
 
 LaserScan downsample(
 		const LaserScan & scan,
@@ -421,6 +494,12 @@ LaserScan downsample(
 		}
 		return LaserScan(output, scan.maxPoints()/step, scan.rangeMax(), scan.format(), scan.localTransform());
 	}
+}
+PointCloud2 downsample(
+		const PointCloud2 & pointCloud2,
+		int step)
+{
+	return PointCloud2(downsample(pointCloud2.cloud(), step), pointCloud2.localTransform());
 }
 template<typename PointT>
 pcl::IndicesPtr downsampleIndex(
