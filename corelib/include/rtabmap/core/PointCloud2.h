@@ -55,6 +55,7 @@ public:
 
 	bool empty() const {return cloud_.data.empty();}
 	bool isEmpty() const {return cloud_.data.empty();}			
+	int size() const {return cloud_.height * cloud_.width;}			
 	bool hasNormals() const {return std::any_of(cloud_.fields.begin(), cloud_.fields.end(), [](pcl::PCLPointField field){return field.name=="normal_x";});}
 	bool hasRGB() const {return std::any_of(cloud_.fields.begin(), cloud_.fields.end(), [](pcl::PCLPointField field){return field.name=="rgb" || field.name=="rgba";});}
 	bool hasIntensity() const {return std::any_of(cloud_.fields.begin(), cloud_.fields.end(), [](pcl::PCLPointField field){return field.name=="intensity";});}
