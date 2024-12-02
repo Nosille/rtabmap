@@ -754,7 +754,7 @@ pcl::PCLPointCloud2::Ptr voxelize(
 		const pcl::PCLPointCloud2::Ptr & cloud, 
 		const pcl::IndicesPtr & indices,
 		float voxelSize, 
-		int level = 0)
+		int level)
 {
 	UASSERT(voxelSize > 0.0f);
 	pcl::PCLPointCloud2::Ptr output(new pcl::PCLPointCloud2);
@@ -2588,6 +2588,16 @@ std::vector<pcl::IndicesPtr> extractClustersImpl(
 
 	return output;
 }
+std::vector<pcl::IndicesPtr> extractClusters(
+		const pcl::PCLPointCloud2::Ptr & cloud,
+		float clusterTolerance,
+		int minClusterSize,
+		int maxClusterSize,
+		int * biggestClusterIndex)
+{
+	pcl::IndicesPtr indices(new std::vector<int>);
+	return extractClusters(cloud, indices, clusterTolerance, minClusterSize, maxClusterSize, biggestClusterIndex);
+}
 
 std::vector<pcl::IndicesPtr> extractClusters(
 		const pcl::PointCloud<pcl::PointXYZ>::Ptr & cloud,
@@ -2648,6 +2658,18 @@ std::vector<pcl::IndicesPtr> extractClusters(
 		int * biggestClusterIndex)
 {
 	return extractClustersImpl<pcl::PointXYZINormal>(cloud, indices, clusterTolerance, minClusterSize, maxClusterSize, biggestClusterIndex);
+}
+std::vector<pcl::IndicesPtr> extractClusters(
+		const pcl::PCLPointCloud2::Ptr & cloud,
+		const pcl::IndicesPtr & indices,
+		float clusterTolerance,
+		int minClusterSize,
+		int maxClusterSize,
+		int * biggestClusterIndex)
+{
+	pcl::PointCloud<pcl::PointXYZ>::Ptr xyz(new pcl::PointCloud<pcl::PointXYZ>);	
+	fromPCLPointCloud2(*cloud, *xyz);
+	return extractClustersImpl<pcl::PointXYZ>(xyz, indices, clusterTolerance, minClusterSize, maxClusterSize, biggestClusterIndex);
 }
 
 template<typename PointT>

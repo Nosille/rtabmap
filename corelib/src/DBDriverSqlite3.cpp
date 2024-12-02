@@ -1805,18 +1805,18 @@ void DBDriverSqlite3::loadNodeDataQuery(std::list<Signature *> & signatures, boo
 					data = sqlite3_column_blob(ppStmt, index);
 					dataSize = sqlite3_column_bytes(ppStmt, index++);
 					//pc2_fields
-					if(dataSize > 0 && data)
-					{
-						memcpy(pointCloud2Compressed.fields.data(), data, dataSize); //pointCloud2 fields
-					}
+					// if(dataSize > 0 && data)
+					// {
+					// 	memcpy(pointCloud2Compressed.fields.data(), data, dataSize); //pointCloud2 fields
+					// }
 
 					data = sqlite3_column_blob(ppStmt, index);
 					dataSize = sqlite3_column_bytes(ppStmt, index++);
 					//pc2_data
-					if(dataSize>4 && data)
-					{
-						memcpy(pointCloud2Compressed.data.data(), data, dataSize); //pointCloud2 data
-					}
+					// if(dataSize>4 && data)
+					// {
+					// 	memcpy(pointCloud2Compressed.data.data(), data, dataSize); //pointCloud2 data
+					// }
 				}	
 
 				if(uStrNumCmp(_version, "0.11.10") < 0 || userData)

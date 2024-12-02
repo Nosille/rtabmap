@@ -173,6 +173,21 @@ void segmentObstaclesFromGround(
 		const Eigen::Vector4f & viewPoint = Eigen::Vector4f(0,0,100,0),
 		float groundNormalsUp = 0);
 
+void segmentObstaclesFromGround(
+		const pcl::PCLPointCloud2::Ptr & cloud,
+		const pcl::IndicesPtr & indices,
+		pcl::IndicesPtr & ground,
+		pcl::IndicesPtr & obstacles,
+		int normalKSearch,
+		float groundNormalAngle,
+		float clusterRadius,
+		int minClusterSize,
+		bool segmentFlatObstacles = false,
+		float maxGroundHeight = 0.0f,
+		pcl::IndicesPtr * flatObstacles = 0,
+		const Eigen::Vector4f & viewPoint = Eigen::Vector4f(0,0,100,0),
+		float groundNormalsUp = 0);		
+
 template<typename PointT>
 void occupancy2DFromGroundObstacles(
 		const typename pcl::PointCloud<PointT>::Ptr & cloud,

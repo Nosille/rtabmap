@@ -35,6 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <pcl/pcl_base.h>
 #include <pcl/ModelCoefficients.h>
 #include <rtabmap/core/LaserScan.h>
+#include <rtabmap/core/PointCloud2.h>
 
 namespace rtabmap
 {
@@ -72,10 +73,17 @@ LaserScan RTABMAP_CORE_EXPORT rangeFiltering(
 		const LaserScan & scan,
 		float rangeMin,
 		float rangeMax);
+PointCloud2 RTABMAP_CORE_EXPORT rangeFiltering(
+		const PointCloud2 & cloud2,
+		float rangeMin,
+		float rangeMax);		
 
 LaserScan RTABMAP_CORE_EXPORT downsample(
 		const LaserScan & cloud,
 		int step);
+PointCloud2 RTABMAP_CORE_EXPORT downsample(
+		const PointCloud2 & cloud2,
+		int step);		
 pcl::PointCloud<pcl::PointXYZ>::Ptr RTABMAP_CORE_EXPORT downsample(
 		const pcl::PointCloud<pcl::PointXYZ>::Ptr & cloud,
 		int step);
@@ -126,7 +134,7 @@ pcl::PCLPointCloud2::Ptr RTABMAP_CORE_EXPORT voxelize(
 		const pcl::PCLPointCloud2::Ptr & cloud,
 		const pcl::IndicesPtr & indices,
 		float voxelSize,
-		int level);		
+		int level = 0);		
 
 pcl::PointCloud<pcl::PointXYZ>::Ptr RTABMAP_CORE_EXPORT voxelize(
 		const pcl::PointCloud<pcl::PointXYZ>::Ptr & cloud,
@@ -873,6 +881,12 @@ std::vector<pcl::IndicesPtr> RTABMAP_CORE_EXPORT extractClusters(
 		int minClusterSize,
 		int maxClusterSize = std::numeric_limits<int>::max(),
 		int * biggestClusterIndex = 0);
+std::vector<pcl::IndicesPtr> RTABMAP_CORE_EXPORT extractClusters(
+		const pcl::PCLPointCloud2::Ptr & cloud,
+		float clusterTolerance,
+		int minClusterSize,
+		int maxClusterSize = std::numeric_limits<int>::max(),
+		int * biggestClusterIndex = 0);
 
 /**
  * @brief Wrapper of the pcl::EuclideanClusterExtraction class.
@@ -928,6 +942,13 @@ std::vector<pcl::IndicesPtr> RTABMAP_CORE_EXPORT extractClusters(
 		int minClusterSize,
 		int maxClusterSize = std::numeric_limits<int>::max(),
 		int * biggestClusterIndex = 0);
+std::vector<pcl::IndicesPtr> RTABMAP_CORE_EXPORT extractClusters(
+		const pcl::PCLPointCloud2::Ptr & cloud,
+		const pcl::IndicesPtr & indices,
+		float clusterTolerance,
+		int minClusterSize,
+		int maxClusterSize = std::numeric_limits<int>::max(),
+		int * biggestClusterIndex = 0);	
 
 pcl::IndicesPtr RTABMAP_CORE_EXPORT extractIndices(
 		const pcl::PointCloud<pcl::PointXYZ>::Ptr & cloud,

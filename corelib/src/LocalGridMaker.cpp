@@ -258,26 +258,7 @@ void LocalGridMaker::createLocalMap(
 
 				UDEBUG("scan format=%d", scan.format());
 
-				bool normalSegmentationTmp = normalsSegmentation_;
-				float minGroundHeightTmp = minGroundHeight_;
-				float maxGroundHeightTmp = maxGroundHeight_;
-				if(scan.is2d())
-				{
-					// if 2D, assume the whole scan is obstacle
-					normalsSegmentation_ = false;
-					minGroundHeight_ = std::numeric_limits<int>::min();
-					maxGroundHeight_ = std::numeric_limits<int>::min()+100;
-				}
-
 				createLocalMap(scan, node.getPose(), groundCells, obstacleCells, emptyCells, viewPoint);
-
-				if(scan.is2d())
-				{
-					// restore
-					normalsSegmentation_ = normalSegmentationTmp;
-					minGroundHeight_ = minGroundHeightTmp;
-					maxGroundHeight_ = maxGroundHeightTmp;
-				}
 			}
 			else
 			{
@@ -353,52 +334,6 @@ void LocalGridMaker::createLocalMap(
 					viewPoint.y /= sum;
 					viewPoint.z /= sum;
 				}
-			}
-
-			cv::Mat scanGroundCells;
-			cv::Mat scanObstacleCells;
-			cv::Mat scanEmptyCells;
-			if(occupancySensor_ == 2)
-			{
-				// backup
-				scanGroundCells = groundCells;
-				scanObstacleCells = obstacleCells;
-				scanEmptyCells = emptyCells;
-				groundCells = cv::Mat();
-				obstacleCells = cv::Mat();
-				emptyCells = cv::Mat();
-			}
-
-			createLocalMap(LaserScan(util3d::laserScanFromPointCloud(*cloud, indices), 0, 0.0f), node.getPose(), groundCells, obstacleCells, emptyCells, viewPoint);
-
-			if(occupancySensor_ == 2)
-			{
-				if(grid3D_)
-				{
-					// We should convert scans to 4 channels (XYZRGB) to be compatible
-					scanGroundCells = util3d::laserScanFromPointCloud(*util3d::laserScanToPointCloudRGB(LaserScan::backwardCompatibility(scanGroundCells), Transform::getIdentity(), 255, 255, 255)).data();
-					scanObstacleCells = util3d::laserScanFromPointCloud(*util3d::laserScanToPointCloudRGB(LaserScan::backwardCompatibility(scanObstacleCells), Transform::getIdentity(), 255, 255, 255)).data();
-					scanEmptyCells = util3d::laserScanFromPointCloud(*util3d::laserScanToPointCloudRGB(LaserScan::backwardCompatibility(scanEmptyCells), Transform::getIdentity(), 255, 255, 255)).data();
-				}
-
-				UDEBUG("groundCells, depth: size=%d channels=%d vs scan: size=%d channels=%d", groundCells.cols, groundCells.channels(), scanGroundCells.cols, scanGroundCells.channels());
-				UDEBUG("obstacleCells, depth: size=%d channels=%d vs scan: size=%d channels=%d", obstacleCells.cols, obstacleCells.channels(), scanObstacleCells.cols, scanObstacleCells.channels());
-				UDEBUG("emptyCells, depth: size=%d channels=%d vs scan: size=%d channels=%d", emptyCells.cols, emptyCells.channels(), scanEmptyCells.cols, scanEmptyCells.channels());
-
-				if(!groundCells.empty() && !scanGroundCells.empty())
-					cv::hconcat(groundCells, scanGroundCells, groundCells);
-				else if(!scanGroundCells.empty())
-					groundCells = scanGroundCells;
-
-				if(!obstacleCells.empty() && !scanObstacleCells.empty())
-					cv::hconcat(obstacleCells, scanObstacleCells, obstacleCells);
-				else if(!scanObstacleCells.empty())
-					obstacleCells = scanObstacleCells;
-
-				if(!emptyCells.empty() && !scanEmptyCells.empty())
-					cv::hconcat(emptyCells, scanEmptyCells, emptyCells);
-				else if(!scanEmptyCells.empty())
-					emptyCells = scanEmptyCells;
 			}
 		}
 	}
