@@ -1782,7 +1782,7 @@ void DBDriverSqlite3::loadNodeDataQuery(std::list<Signature *> & signatures, boo
 				}
 
 				Transform pc2LocalTransform = Transform::getIdentity();
-				if(pointCloud2 && uStrNumCmp(_version, "1.0.0") >= 0)
+				if(pointCloud2)
 				{
 					// pc2_info
 					data = sqlite3_column_blob(ppStmt, index);
@@ -1792,27 +1792,28 @@ void DBDriverSqlite3::loadNodeDataQuery(std::list<Signature *> & signatures, boo
 					{
 						float * dataFloat = (float*)data;
 
-						UASSERT(dataSize == (int)((pc2LocalTransform.size()+6)*sizeof(float)));
+						UASSERT(dataSize == (int)((pc2LocalTransform.size()+7)*sizeof(float)));
 						pointCloud2Compressed.height = (int)dataFloat[0];
 						pointCloud2Compressed.width = (int)dataFloat[1];
 						pointCloud2Compressed.point_step = (int)dataFloat[2];
 						pointCloud2Compressed.row_step = (int)dataFloat[3];
 						pointCloud2Compressed.is_bigendian = (int)dataFloat[4];
 						pointCloud2Compressed.is_dense = (int)dataFloat[5];
-						memcpy(pc2LocalTransform.data(), dataFloat+6, pc2LocalTransform.size()*sizeof(float));
+						pointCloud2Compressed.fields.resize((int)dataFloat[6]);
+						memcpy(pc2LocalTransform.data(), dataFloat+7, pc2LocalTransform.size()*sizeof(float));
 					}
 
+					//pc2_fields
 					data = sqlite3_column_blob(ppStmt, index);
 					dataSize = sqlite3_column_bytes(ppStmt, index++);
-					//pc2_fields
 					// if(dataSize > 0 && data)
 					// {
 					// 	memcpy(pointCloud2Compressed.fields.data(), data, dataSize); //pointCloud2 fields
 					// }
 
+					//pc2_data
 					data = sqlite3_column_blob(ppStmt, index);
 					dataSize = sqlite3_column_bytes(ppStmt, index++);
-					//pc2_data
 					// if(dataSize>4 && data)
 					// {
 					// 	memcpy(pointCloud2Compressed.data.data(), data, dataSize); //pointCloud2 data
@@ -2339,14 +2340,15 @@ bool DBDriverSqlite3::getPointCloud2InfoQuery(
 				float * dataFloat = (float*)data;
 				if(uStrNumCmp(_version, "1.0.0") >= 0)
 				{
-					UASSERT(dataSize == (int)((localTransform.size()+6)*sizeof(float)));
+					UASSERT(dataSize == (int)((localTransform.size()+7)*sizeof(float)));
 					cloud.height = (int)dataFloat[0];
 					cloud.width  = (int)dataFloat[1];
 					cloud.point_step = (int)dataFloat[2];
 					cloud.row_step = (int)dataFloat[3];
 					cloud.is_bigendian = (int)dataFloat[4];
 					cloud.is_dense = (int)dataFloat[5];
-					memcpy(localTransform.data(), dataFloat+6, localTransform.size()*sizeof(float));
+					cloud.fields.resize((int)dataFloat[6]);
+					memcpy(localTransform.data(), dataFloat+7, localTransform.size()*sizeof(float));
 				}
 	
 				info = rtabmap::PointCloud2(cloud, localTransform);
@@ -4885,7 +4887,7 @@ void DBDriverSqlite3::updatePointCloud2Query(
 		rc = sqlite3_prepare_v2(_ppDb, query.c_str(), -1, &ppStmt, 0);
 		UASSERT_MSG(rc == SQLITE_OK, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
 
-		// Save depth
+		// Save pointcloud2
 		stepPointCloud2Update(ppStmt,
 				nodeId,
 				cloud);
@@ -6321,17 +6323,17 @@ void DBDriverSqlite3::stepPointCloud2Update(sqlite3_stmt * ppStmt, int nodeId, c
 			(!cloud.localTransform().isNull() && !cloud.localTransform().isIdentity()))
 	{
 
-		pc2Info.resize(6 + Transform().size());
+		pc2Info.resize(7 + Transform().size());
 		pc2Info[0] = cloud.cloud().height;
 		pc2Info[1] = cloud.cloud().width;
 		pc2Info[2] = cloud.cloud().point_step;
 		pc2Info[3] = cloud.cloud().row_step;
 		pc2Info[4] = cloud.cloud().is_bigendian;
 		pc2Info[5] = cloud.cloud().is_dense;
+		pc2Info[6] = cloud.cloud().fields.size();
 		const Transform & localTransform = cloud.localTransform();
-		memcpy(pc2Info.data()+6, localTransform.data(), localTransform.size()*sizeof(float));
-
-		
+		memcpy(pc2Info.data()+7, localTransform.data(), localTransform.size()*sizeof(float));
+	
 	}
 
 	if(pc2Info.size())
@@ -6630,15 +6632,16 @@ void DBDriverSqlite3::stepSensorData(sqlite3_stmt * ppStmt,
 	if(sensorData.pointCloud2Compressed().cloud().width > 0 ||
 			(!sensorData.pointCloud2Compressed().localTransform().isNull() && !sensorData.pointCloud2Compressed().localTransform().isIdentity()))
 	{
-		pc2Info.resize(6 + Transform().size());
+		pc2Info.resize(7 + Transform().size());
 		pc2Info[0] = sensorData.pointCloud2Compressed().cloud().height;
 		pc2Info[1] = sensorData.pointCloud2Compressed().cloud().width;
 		pc2Info[2] = sensorData.pointCloud2Compressed().cloud().point_step;
 		pc2Info[3] = sensorData.pointCloud2Compressed().cloud().row_step;
 		pc2Info[4] = sensorData.pointCloud2Compressed().cloud().is_bigendian;
 		pc2Info[5] = sensorData.pointCloud2Compressed().cloud().is_dense;
+		pc2Info[6] = sensorData.pointCloud2Compressed().cloud().fields.size();		
 		const Transform & localTransform = sensorData.pointCloud2Compressed().localTransform();
-		memcpy(pc2Info.data()+6, localTransform.data(), localTransform.size()*sizeof(float));
+		memcpy(pc2Info.data()+7, localTransform.data(), localTransform.size()*sizeof(float));
 	}
 
 	if(pc2Info.size())
@@ -6663,18 +6666,15 @@ void DBDriverSqlite3::stepSensorData(sqlite3_stmt * ppStmt,
 	UASSERT_MSG(rc == SQLITE_OK, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
 
 	// pc2_data
-	if(uStrNumCmp(_version, "1.0.0") >= 0)
+	if(!sensorData.pointCloud2Compressed().isEmpty())
 	{
-		if(!sensorData.pointCloud2Compressed().isEmpty())
-		{
-			rc = sqlite3_bind_blob(ppStmt, index++, sensorData.pointCloud2Compressed().cloud().data.data(), sensorData.pointCloud2Compressed().cloud().data.size() * sizeof(std::uint8_t), SQLITE_STATIC);
-		}
-		else
-		{
-			rc = sqlite3_bind_null(ppStmt, index++);
-		}
-		UASSERT_MSG(rc == SQLITE_OK, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
+		rc = sqlite3_bind_blob(ppStmt, index++, sensorData.pointCloud2Compressed().cloud().data.data(), sensorData.pointCloud2Compressed().cloud().data.size() * sizeof(std::uint8_t), SQLITE_STATIC);
 	}
+	else
+	{
+		rc = sqlite3_bind_null(ppStmt, index++);
+	}
+	UASSERT_MSG(rc == SQLITE_OK, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
 
 	if(uStrNumCmp(_version, "0.10.1") >= 0)
 	{
