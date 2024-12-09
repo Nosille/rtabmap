@@ -63,6 +63,7 @@ protected:
 	virtual long getCalibrationsMemoryUsedQuery() const;
 	virtual long getGridsMemoryUsedQuery() const;
 	virtual long getLaserScansMemoryUsedQuery() const;
+	virtual long getPointCloud2MemoryUsedQuery() const;
 	virtual long getUserDataMemoryUsedQuery() const;
 	virtual long getWordsMemoryUsedQuery() const;
 	virtual long getFeaturesMemoryUsedQuery() const;
@@ -107,7 +108,11 @@ protected:
 
 	void updateLaserScanQuery(
 			int nodeId,
-			const LaserScan & scan) const;
+			const rtabmap::LaserScan & scan) const;
+
+	void updatePointCloud2Query(
+			int nodeId,
+			const rtabmap::PointCloud2 & cloud) const;			
 
 	virtual void addStatisticsQuery(const Statistics & statistics, bool saveWmState) const;
 	virtual void savePreviewImageQuery(const cv::Mat & image) const;
@@ -141,9 +146,10 @@ protected:
 	virtual void loadWordsQuery(const std::set<int> & wordIds, std::list<VisualWord *> & vws) const;
 	virtual void loadLinksQuery(int signatureId, std::multimap<int, Link> & links, Link::Type type = Link::kUndef) const;
 
-	virtual void loadNodeDataQuery(std::list<Signature *> & signatures, bool images=true, bool scan=true, bool userData=true, bool occupancyGrid=true) const;
+	virtual void loadNodeDataQuery(std::list<Signature *> & signatures, bool images=true, bool scan=true, bool pointCloud2=false, bool userData=true, bool occupancyGrid=true) const;
 	virtual bool getCalibrationQuery(int signatureId, std::vector<CameraModel> & models, std::vector<StereoCameraModel> & stereoModels) const;
-	virtual bool getLaserScanInfoQuery(int signatureId, LaserScan & info) const;
+	virtual bool getLaserScanInfoQuery(int signatureId, rtabmap::LaserScan & info) const;
+	virtual bool getPointCloud2InfoQuery(int signatureId, rtabmap::PointCloud2 & info) const;
 	virtual bool getNodeInfoQuery(int signatureId, Transform & pose, int & mapId, int & weight, std::string & label, double & stamp, Transform & groundTruthPose, std::vector<float> & velocity, GPS & gps, EnvSensors & sensors) const;
 	virtual void getLastNodeIdsQuery(std::set<int> & ids) const;
 	virtual void getAllNodeIdsQuery(std::set<int> & ids, bool ignoreChildren, bool ignoreBadSignatures, bool ignoreIntermediateNodes) const;
@@ -161,6 +167,7 @@ private:
 	std::string queryStepCalibrationUpdate() const;
 	std::string queryStepDepthUpdate() const;
 	std::string queryStepScanUpdate() const;
+	std::string queryStepPointCloud2Update() const;
 	std::string queryStepSensorData() const;
 	std::string queryStepLinkUpdate() const;
 	std::string queryStepLink() const;
@@ -173,7 +180,8 @@ private:
 	void stepDepth(sqlite3_stmt * ppStmt, const SensorData & sensorData) const;
 	void stepCalibrationUpdate(sqlite3_stmt * ppStmt, int nodeId, const std::vector<CameraModel> & models, const std::vector<StereoCameraModel> & stereoModels) const;
 	void stepDepthUpdate(sqlite3_stmt * ppStmt, int nodeId, const cv::Mat & imageCompressed) const;
-	void stepScanUpdate(sqlite3_stmt * ppStmt, int nodeId, const LaserScan & image) const;
+	void stepScanUpdate(sqlite3_stmt * ppStmt, int nodeId, const rtabmap::LaserScan & image) const;
+	void stepPointCloud2Update(sqlite3_stmt * ppStmt, int nodeId, const rtabmap::PointCloud2 & cloud) const;
 	void stepSensorData(sqlite3_stmt * ppStmt, const SensorData & sensorData) const;
 	void stepLink(sqlite3_stmt * ppStmt, const Link & link) const;
 	void stepWordsChanged(sqlite3_stmt * ppStmt, int signatureId, int oldWordId, int newWordId) const;

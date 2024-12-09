@@ -35,6 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <pcl/pcl_base.h>
 #include <pcl/ModelCoefficients.h>
 #include <rtabmap/core/LaserScan.h>
+#include <rtabmap/core/PointCloud2.h>
 
 namespace rtabmap
 {
@@ -72,6 +73,10 @@ LaserScan RTABMAP_CORE_EXPORT rangeFiltering(
 		const LaserScan & scan,
 		float rangeMin,
 		float rangeMax);
+PointCloud2 RTABMAP_CORE_EXPORT rangeFiltering(
+		const PointCloud2 & cloud2,
+		float rangeMin,
+		float rangeMax);		
 
 pcl::IndicesPtr RTABMAP_CORE_EXPORT rangeFiltering(
 		const pcl::PointCloud<pcl::PointXYZ>::Ptr & cloud,
@@ -122,6 +127,9 @@ void RTABMAP_CORE_EXPORT rangeSplitFiltering(
 LaserScan RTABMAP_CORE_EXPORT downsample(
 		const LaserScan & cloud,
 		int step);
+PointCloud2 RTABMAP_CORE_EXPORT downsample(
+		const PointCloud2 & cloud2,
+		int step);		
 pcl::PointCloud<pcl::PointXYZ>::Ptr RTABMAP_CORE_EXPORT downsample(
 		const pcl::PointCloud<pcl::PointXYZ>::Ptr & cloud,
 		int step);
@@ -140,6 +148,9 @@ pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr RTABMAP_CORE_EXPORT downsample(
 pcl::PointCloud<pcl::PointXYZINormal>::Ptr RTABMAP_CORE_EXPORT downsample(
 		const pcl::PointCloud<pcl::PointXYZINormal>::Ptr & cloud,
 		int step);
+pcl::PCLPointCloud2::Ptr RTABMAP_CORE_EXPORT downsample(
+		const pcl::PCLPointCloud2::Ptr & cloud,
+		int step);				
 
 pcl::PointCloud<pcl::PointXYZ>::Ptr RTABMAP_CORE_EXPORT voxelize(
 		const pcl::PointCloud<pcl::PointXYZ>::Ptr & cloud,
@@ -165,6 +176,12 @@ pcl::PointCloud<pcl::PointXYZINormal>::Ptr RTABMAP_CORE_EXPORT voxelize(
 		const pcl::PointCloud<pcl::PointXYZINormal>::Ptr & cloud,
 		const pcl::IndicesPtr & indices,
 		float voxelSize);
+pcl::PCLPointCloud2::Ptr RTABMAP_CORE_EXPORT voxelize(
+		const pcl::PCLPointCloud2::Ptr & cloud,
+		const pcl::IndicesPtr & indices,
+		float voxelSize,
+		int level = 0);		
+
 pcl::PointCloud<pcl::PointXYZ>::Ptr RTABMAP_CORE_EXPORT voxelize(
 		const pcl::PointCloud<pcl::PointXYZ>::Ptr & cloud,
 		float voxelSize);
@@ -183,6 +200,9 @@ pcl::PointCloud<pcl::PointXYZI>::Ptr RTABMAP_CORE_EXPORT voxelize(
 pcl::PointCloud<pcl::PointXYZINormal>::Ptr RTABMAP_CORE_EXPORT voxelize(
 		const pcl::PointCloud<pcl::PointXYZINormal>::Ptr & cloud,
 		float voxelSize);
+pcl::PCLPointCloud2::Ptr RTABMAP_CORE_EXPORT voxelize(
+		const pcl::PCLPointCloud2::Ptr & cloud,
+		float voxelSize);		
 
 inline pcl::PointCloud<pcl::PointXYZ>::Ptr uniformSampling(
 		const pcl::PointCloud<pcl::PointXYZ>::Ptr & cloud,
@@ -198,6 +218,12 @@ inline pcl::PointCloud<pcl::PointXYZRGB>::Ptr uniformSampling(
 }
 inline pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr uniformSampling(
 		const pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr & cloud,
+		float voxelSize)
+{
+	return voxelize(cloud, voxelSize);
+}
+inline pcl::PCLPointCloud2::Ptr uniformSampling(
+		const pcl::PCLPointCloud2::Ptr & cloud,
 		float voxelSize)
 {
 	return voxelize(cloud, voxelSize);
@@ -222,6 +248,9 @@ pcl::PointCloud<pcl::PointXYZI>::Ptr RTABMAP_CORE_EXPORT randomSampling(
 pcl::PointCloud<pcl::PointXYZINormal>::Ptr RTABMAP_CORE_EXPORT randomSampling(
 		const pcl::PointCloud<pcl::PointXYZINormal>::Ptr & cloud,
 		int samples);
+pcl::PCLPointCloud2::Ptr RTABMAP_CORE_EXPORT randomSampling(
+		const pcl::PCLPointCloud2::Ptr & cloud,
+		int samples);		
 
 
 pcl::IndicesPtr RTABMAP_CORE_EXPORT passThrough(
@@ -266,6 +295,14 @@ pcl::IndicesPtr RTABMAP_CORE_EXPORT passThrough(
 		float min,
 		float max,
 		bool negative = false);
+pcl::IndicesPtr RTABMAP_CORE_EXPORT passThrough(
+		const pcl::PCLPointCloud2::Ptr & cloud,
+		const pcl::IndicesPtr & indices,
+		const std::string & axis,
+		float min,
+		float max,
+		bool negative = false);		
+
 pcl::PointCloud<pcl::PointXYZ>::Ptr RTABMAP_CORE_EXPORT passThrough(
 		const pcl::PointCloud<pcl::PointXYZ>::Ptr & cloud,
 		const std::string & axis,
@@ -298,6 +335,12 @@ pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr RTABMAP_CORE_EXPORT passThrough(
 		bool negative = false);
 pcl::PointCloud<pcl::PointXYZINormal>::Ptr RTABMAP_CORE_EXPORT passThrough(
 		const pcl::PointCloud<pcl::PointXYZINormal>::Ptr & cloud,
+		const std::string & axis,
+		float min,
+		float max,
+		bool negative = false);
+pcl::PCLPointCloud2::Ptr RTABMAP_CORE_EXPORT passThrough(
+		const pcl::PCLPointCloud2::Ptr & cloud,
 		const std::string & axis,
 		float min,
 		float max,
@@ -464,6 +507,10 @@ pcl::IndicesPtr RTABMAP_CORE_EXPORT radiusFiltering(
 		const pcl::PointCloud<pcl::PointXYZINormal>::Ptr & cloud,
 		float radiusSearch,
 		int minNeighborsInRadius);
+pcl::IndicesPtr RTABMAP_CORE_EXPORT radiusFiltering(
+		const pcl::PCLPointCloud2::Ptr & cloud,
+		float radiusSearch,
+		int minNeighborsInRadius);
 
 /**
  * @brief Wrapper of the pcl::RadiusOutlierRemoval class.
@@ -504,6 +551,11 @@ pcl::IndicesPtr RTABMAP_CORE_EXPORT radiusFiltering(
 		int minNeighborsInRadius);
 pcl::IndicesPtr RTABMAP_CORE_EXPORT radiusFiltering(
 		const pcl::PointCloud<pcl::PointXYZINormal>::Ptr & cloud,
+		const pcl::IndicesPtr & indices,
+		float radiusSearch,
+		int minNeighborsInRadius);
+pcl::IndicesPtr RTABMAP_CORE_EXPORT radiusFiltering(
+		const pcl::PCLPointCloud2::Ptr & cloud,
 		const pcl::IndicesPtr & indices,
 		float radiusSearch,
 		int minNeighborsInRadius);
@@ -698,6 +750,32 @@ pcl::IndicesPtr RTABMAP_CORE_EXPORT subtractFiltering(
 		int minNeighborsInRadius = 1);
 
 /**
+ * For convenience.
+ */
+pcl::PCLPointCloud2::Ptr RTABMAP_CORE_EXPORT subtractFiltering(
+		const pcl::PCLPointCloud2::Ptr & cloud,
+		const pcl::PCLPointCloud2::Ptr & substractCloud,
+		float radiusSearch,
+		int minNeighborsInRadius = 1);
+
+/**
+ * Subtract a cloud from another one using radius filtering.
+ * @param cloud the input cloud.
+ * @param indices the input indices of the cloud to check, if empty, all points in the cloud are checked.
+ * @param cloud the input cloud to subtract.
+ * @param indices the input indices of the subtracted cloud to check, if empty, all points in the cloud are checked.
+ * @param radiusSearch the radius in meter.
+ * @return the indices of the points satisfying the parameters.
+ */
+pcl::IndicesPtr RTABMAP_CORE_EXPORT subtractFiltering(
+		const pcl::PCLPointCloud2::Ptr & cloud,
+		const pcl::IndicesPtr & indices,
+		const pcl::PCLPointCloud2::Ptr & substractCloud,
+		const pcl::IndicesPtr & substractIndices,
+		float radiusSearch,
+		int minNeighborsInRadius = 1);
+
+/**
  * Subtract a cloud from another one using radius filtering.
  * @param cloud the input cloud.
  * @param indices the input indices of the cloud to check, if empty, all points in the cloud are checked.
@@ -748,6 +826,13 @@ pcl::IndicesPtr RTABMAP_CORE_EXPORT normalFiltering(
 		float groundNormalsUp = 0.0f);
 pcl::IndicesPtr RTABMAP_CORE_EXPORT normalFiltering(
 		const pcl::PointCloud<pcl::PointXYZRGB>::Ptr & cloud,
+		float angleMax,
+		const Eigen::Vector4f & normal,
+		int normalKSearch,
+		const Eigen::Vector4f & viewpoint,
+		float groundNormalsUp = 0.0f);
+pcl::IndicesPtr RTABMAP_CORE_EXPORT normalFiltering(
+		const pcl::PCLPointCloud2::Ptr & cloud,
 		float angleMax,
 		const Eigen::Vector4f & normal,
 		int normalKSearch,
@@ -818,6 +903,14 @@ pcl::IndicesPtr RTABMAP_CORE_EXPORT normalFiltering(
 		int normalKSearch,
 		const Eigen::Vector4f & viewpoint,
 		float groundNormalsUp = 0.0f);
+pcl::IndicesPtr RTABMAP_CORE_EXPORT normalFiltering(
+		const pcl::PCLPointCloud2::Ptr & cloud,
+		const pcl::IndicesPtr & indices,
+		float angleMax,
+		const Eigen::Vector4f & normal,
+		int normalKSearch,
+		const Eigen::Vector4f & viewpoint,
+		float groundNormalsUp = 0.0f);
 
 /**
  * For convenience.
@@ -830,6 +923,12 @@ std::vector<pcl::IndicesPtr> RTABMAP_CORE_EXPORT extractClusters(
 		int * biggestClusterIndex = 0);
 std::vector<pcl::IndicesPtr> RTABMAP_CORE_EXPORT extractClusters(
 		const pcl::PointCloud<pcl::PointXYZRGB>::Ptr & cloud,
+		float clusterTolerance,
+		int minClusterSize,
+		int maxClusterSize = std::numeric_limits<int>::max(),
+		int * biggestClusterIndex = 0);
+std::vector<pcl::IndicesPtr> RTABMAP_CORE_EXPORT extractClusters(
+		const pcl::PCLPointCloud2::Ptr & cloud,
 		float clusterTolerance,
 		int minClusterSize,
 		int maxClusterSize = std::numeric_limits<int>::max(),
@@ -889,6 +988,13 @@ std::vector<pcl::IndicesPtr> RTABMAP_CORE_EXPORT extractClusters(
 		int minClusterSize,
 		int maxClusterSize = std::numeric_limits<int>::max(),
 		int * biggestClusterIndex = 0);
+std::vector<pcl::IndicesPtr> RTABMAP_CORE_EXPORT extractClusters(
+		const pcl::PCLPointCloud2::Ptr & cloud,
+		const pcl::IndicesPtr & indices,
+		float clusterTolerance,
+		int minClusterSize,
+		int maxClusterSize = std::numeric_limits<int>::max(),
+		int * biggestClusterIndex = 0);	
 
 pcl::IndicesPtr RTABMAP_CORE_EXPORT extractIndices(
 		const pcl::PointCloud<pcl::PointXYZ>::Ptr & cloud,
@@ -912,6 +1018,10 @@ pcl::IndicesPtr RTABMAP_CORE_EXPORT extractIndices(
 		bool negative);
 pcl::IndicesPtr RTABMAP_CORE_EXPORT extractIndices(
 		const pcl::PointCloud<pcl::PointXYZINormal>::Ptr & cloud,
+		const pcl::IndicesPtr & indices,
+		bool negative);
+pcl::IndicesPtr RTABMAP_CORE_EXPORT extractIndices(
+		const pcl::PCLPointCloud2::Ptr & cloud,
 		const pcl::IndicesPtr & indices,
 		bool negative);
 
@@ -943,6 +1053,11 @@ pcl::PointCloud<pcl::PointXYZI>::Ptr RTABMAP_CORE_EXPORT extractIndices(
 		bool keepOrganized);
 pcl::PointCloud<pcl::PointXYZINormal>::Ptr RTABMAP_CORE_EXPORT extractIndices(
 		const pcl::PointCloud<pcl::PointXYZINormal>::Ptr & cloud,
+		const pcl::IndicesPtr & indices,
+		bool negative,
+		bool keepOrganized);
+pcl::PCLPointCloud2::Ptr RTABMAP_CORE_EXPORT extractIndices(
+		const pcl::PCLPointCloud2::Ptr & cloud,
 		const pcl::IndicesPtr & indices,
 		bool negative,
 		bool keepOrganized);

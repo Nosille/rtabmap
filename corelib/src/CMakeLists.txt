@@ -69,6 +69,7 @@ SET(SRC_FILES
     Compression.cpp
     Link.cpp
     LaserScan.cpp
+	PointCloud2.cpp
     
     Optimizer.cpp
     optimizer/OptimizerTORO.cpp
@@ -112,7 +113,9 @@ SET(SRC_FILES
     
     GlobalMap.cpp
     LocalGridMaker.cpp
+	LocalCloudMaker.cpp
     LocalGrid.cpp
+	LocalCloud.cpp
     global_map/OccupancyGrid.cpp
     global_map/CloudMap.cpp
     

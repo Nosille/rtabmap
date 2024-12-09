@@ -28,6 +28,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "rtabmap/core/util3d_transforms.h"
 
 #include <pcl/common/transforms.h>
+#include <pcl/common/io.h>
+#include <pcl/filters/extract_indices.h>
 #include <rtabmap/utilite/ULogger.h>
 
 namespace rtabmap
@@ -153,6 +155,42 @@ pcl::PointCloud<pcl::PointXYZINormal>::Ptr transformPointCloud(
 	return output;
 }
 
+pcl::PCLPointCloud2::Ptr transformPointCloud(
+		const pcl::PCLPointCloud2::Ptr & cloud,
+		const Transform & transform)
+{
+	pcl::PCLPointCloud2::Ptr output(new pcl::PCLPointCloud2);
+	
+	// Check for 'normals'
+	bool has_normals = false;
+	for (const auto &field : cloud->fields)
+		if (field.name == "normal_x" || field.name == "normal_y" || field.name == "normal_z")
+			has_normals = true;
+
+	if (has_normals)
+	{
+		pcl::PointCloud<pcl::PointNormal> xyznormals;
+		fromPCLPointCloud2(*cloud, xyznormals);
+		pcl::transformPointCloud<pcl::PointNormal> (xyznormals, xyznormals, transform.toEigen4f());
+		// Copy back the xyz and normals
+		pcl::PCLPointCloud2 output_xyznormals;
+		toPCLPointCloud2(xyznormals, output_xyznormals);
+		pcl::concatenateFields(*cloud, output_xyznormals, *output);
+	}
+	else
+	{
+		pcl::PointCloud<pcl::PointXYZ> xyz;
+		fromPCLPointCloud2(*cloud, xyz);
+		pcl::transformPointCloud<pcl::PointXYZ> (xyz, xyz, transform.toEigen4f());
+		// Copy back the xyz and normals
+		pcl::PCLPointCloud2 output_xyz;
+		toPCLPointCloud2(xyz, output_xyz);
+		pcl::concatenateFields(*cloud, output_xyz, *output);
+	}
+	
+	return output;
+}
+
 pcl::PointCloud<pcl::PointXYZ>::Ptr transformPointCloud(
 		const pcl::PointCloud<pcl::PointXYZ>::Ptr & cloud,
 		const pcl::IndicesPtr & indices,
@@ -205,6 +243,51 @@ pcl::PointCloud<pcl::PointXYZINormal>::Ptr transformPointCloud(
 {
 	pcl::PointCloud<pcl::PointXYZINormal>::Ptr output(new pcl::PointCloud<pcl::PointXYZINormal>);
 	pcl::transformPointCloudWithNormals(*cloud, *indices, *output, transform.toEigen4f());
+	return output;
+}
+pcl::PCLPointCloud2::Ptr transformPointCloud(
+		const pcl::PCLPointCloud2::Ptr & cloud,
+		const pcl::IndicesPtr & indices,
+		const Transform & transform)
+{
+	pcl::PCLPointCloud2::Ptr input(new pcl::PCLPointCloud2);
+	pcl::PCLPointCloud2::Ptr output(new pcl::PCLPointCloud2);
+	
+	// Check for 'normals'
+	bool has_normals = false;
+	for (const auto &field : cloud->fields)
+		if (field.name == "normal_x" || field.name == "normal_y" || field.name == "normal_z")
+			has_normals = true;
+
+	// Apply the indices
+	pcl::ExtractIndices<pcl::PCLPointCloud2> extract;
+	extract.setInputCloud(cloud);
+	extract.setIndices(indices);
+	extract.setNegative(false);
+	extract.filter(*input);
+	input->is_dense = cloud->is_dense;	
+
+	if (has_normals)
+	{
+		pcl::PointCloud<pcl::PointNormal> xyznormals;
+		fromPCLPointCloud2(*input, xyznormals);
+		pcl::transformPointCloud(xyznormals, xyznormals, transform.toEigen4f());
+		// Copy back the xyz and normals
+		pcl::PCLPointCloud2 output_xyznormals;
+		toPCLPointCloud2(xyznormals, output_xyznormals);
+		pcl::concatenateFields(*input, output_xyznormals, *output);
+	}
+	else
+	{
+		pcl::PointCloud<pcl::PointXYZ> xyz;
+		fromPCLPointCloud2(*input, xyz);
+		pcl::transformPointCloud<pcl::PointXYZ> (xyz, xyz, transform.toEigen4f());
+		// Copy back the xyz and normals
+		pcl::PCLPointCloud2 output_xyz;
+		toPCLPointCloud2(xyz, output_xyz);
+		pcl::concatenateFields(*input, output_xyz, *output);
+	}
+	
 	return output;
 }
 

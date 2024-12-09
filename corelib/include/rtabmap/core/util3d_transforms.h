@@ -64,6 +64,9 @@ pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr RTABMAP_CORE_EXPORT transformPointC
 pcl::PointCloud<pcl::PointXYZINormal>::Ptr RTABMAP_CORE_EXPORT transformPointCloud(
 		const pcl::PointCloud<pcl::PointXYZINormal>::Ptr & cloud,
 		const Transform & transform);
+pcl::PCLPointCloud2::Ptr RTABMAP_CORE_EXPORT transformPointCloud(
+		const pcl::PCLPointCloud2::Ptr & cloud,
+		const Transform & transform);
 
 pcl::PointCloud<pcl::PointXYZ>::Ptr RTABMAP_CORE_EXPORT transformPointCloud(
 		const pcl::PointCloud<pcl::PointXYZ>::Ptr & cloud,
@@ -87,6 +90,10 @@ pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr RTABMAP_CORE_EXPORT transformPointC
 		const Transform & transform);
 pcl::PointCloud<pcl::PointXYZINormal>::Ptr RTABMAP_CORE_EXPORT transformPointCloud(
 		const pcl::PointCloud<pcl::PointXYZINormal>::Ptr & cloud,
+		const pcl::IndicesPtr & indices,
+		const Transform & transform);
+pcl::PCLPointCloud2::Ptr RTABMAP_CORE_EXPORT transformPointCloud(
+		const pcl::PCLPointCloud2::Ptr & cloud,
 		const pcl::IndicesPtr & indices,
 		const Transform & transform);
 

@@ -1022,6 +1022,28 @@ cv::Mat erodeMap(const cv::Mat & map)
 	return erodedMap;
 }
 
+void segmentObstaclesFromGround(
+		const typename pcl::PCLPointCloud2::Ptr & cloud,
+		const typename pcl::IndicesPtr & indices,
+		pcl::IndicesPtr & ground,
+		pcl::IndicesPtr & obstacles,
+		int normalKSearch,
+		float groundNormalAngle,
+		float clusterRadius,
+		int minClusterSize,
+		bool segmentFlatObstacles,
+		float maxGroundHeight,
+		pcl::IndicesPtr * flatObstacles,
+		const Eigen::Vector4f & viewPoint,
+		float groundNormalsUp)
+{
+	pcl::PointCloud<pcl::PointXYZ>::Ptr xyz(new pcl::PointCloud<pcl::PointXYZ>);
+	fromPCLPointCloud2(*cloud, *xyz);
+
+	util3d::segmentObstaclesFromGround<pcl::PointXYZ>(xyz, indices, ground, obstacles, normalKSearch, groundNormalAngle, clusterRadius, minClusterSize,
+		segmentFlatObstacles, maxGroundHeight, flatObstacles, viewPoint, groundNormalsUp);
+}
+
 }
 
 }

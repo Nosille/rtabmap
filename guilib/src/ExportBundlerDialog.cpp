@@ -239,7 +239,7 @@ void ExportBundlerDialog::exportBundler(
 						cv::Mat image = ster.value().sensorData().imageRaw();
 						if(image.empty())
 						{
-							ster.value().sensorData().uncompressDataConst(&image, 0, 0, 0);
+							ster.value().sensorData().uncompressDataConst(&image, 0, 0, 0, 0, 0, 0, 0);
 						}
 
 						double maxLinearVel = _ui->doubleSpinBox_linearSpeed->value();

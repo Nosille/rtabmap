@@ -441,6 +441,9 @@ int main(int argc, char * argv[])
 		mem = driver->getLaserScansMemoryUsed();
 		total+=mem;
 		std::cout << (uFormat("%s%d %s\t(%.2f%%)\n", uPad("Scans size:").c_str(), mem>1000000?mem/1000000:mem>1000?mem/1000:mem, mem>1000000?"MB":mem>1000?"KB":"Bytes", dbSize>0?double(mem)/double(dbSize)*100.0:0.0));
+		mem = driver->getPointCloud2MemoryUsed();
+		total+=mem;
+		std::cout << (uFormat("%s%d %s\t(%.2f%%)\n", uPad("PointCloud2 size:").c_str(), mem>1000000?mem/1000000:mem>1000?mem/1000:mem, mem>1000000?"MB":mem>1000?"KB":"Bytes", dbSize>0?double(mem)/double(dbSize)*100.0:0.0));
 		mem = driver->getUserDataMemoryUsed();
 		total+=mem;
 		std::cout << (uFormat("%s%d %s\t(%.2f%%)\n", uPad("User data size:").c_str(), mem>1000000?mem/1000000:mem>1000?mem/1000:mem, mem>1000000?"MB":mem>1000?"KB":"Bytes", dbSize>0?double(mem)/double(dbSize)*100.0:0.0));

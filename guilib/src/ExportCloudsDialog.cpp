@@ -4437,6 +4437,209 @@ void ExportCloudsDialog::saveClouds(
 	}
 }
 
+void ExportCloudsDialog::saveClouds(
+		const QString & workingDirectory,
+		const std::map<int, Transform> & poses,
+		const std::map<int, pcl::PCLPointCloud2::Ptr> & clouds,
+		bool binaryMode,
+		const std::vector<std::map<int, pcl::PointXY> > & pointToPixels)
+{
+	if(clouds.size() == 1)
+	{
+#ifdef RTABMAP_PDAL
+		QString extensions = tr("Point cloud data (*.ply *.pcd");
+		std::list<std::string> pdalFormats = uSplit(getPDALSupportedWriters(), ' ');
+		for(std::list<std::string>::iterator iter=pdalFormats.begin(); iter!=pdalFormats.end(); ++iter)
+		{
+			if(iter->compare("ply") == 0 || iter->compare("pcd") == 0)
+			{
+				continue;
+			}
+			extensions += QString(" *.") + iter->c_str();
+		}
+		extensions += ")";
+#elif defined(RTABMAP_LIBLAS)
+		QString extensions = tr("Point cloud data (*.ply *.pcd *.las *.laz)");
+#else
+		QString extensions = tr("Point cloud data (*.ply *.pcd)");
+#endif
+		QString path = QFileDialog::getSaveFileName(this, tr("Save cloud to ..."), workingDirectory+QDir::separator()+"cloud.ply", extensions);
+
+		if(!path.isEmpty())
+		{
+			if(QFileInfo(path).suffix().isEmpty())
+			{
+				//use ply by default
+				path += ".ply";
+			}
+
+			int cloudSize = clouds.begin()->second->height * clouds.begin()->second->width;
+			if(cloudSize)
+			{
+				_progressDialog->appendText(tr("Saving the cloud (%1 points)...").arg(cloudSize));
+
+				bool success =false;
+				if(QFileInfo(path).suffix() == "pcd")
+				{
+					{
+						success = pcl::io::savePCDFile(path.toStdString(), *clouds.begin()->second, Eigen::Vector4f::Zero(), Eigen::Quaternionf::Identity(), binaryMode) == 0;
+					}
+				}
+#ifdef RTABMAP_PDAL
+				else if(QFileInfo(path).suffix() == "ply" && pointToPixels.empty()) {
+#else
+				else if(QFileInfo(path).suffix() == "ply") {
+#endif
+					{
+						success = pcl::io::savePLYFile(path.toStdString(), *clouds.begin()->second, Eigen::Vector4f::Zero(), Eigen::Quaternionf::Identity(), binaryMode) == 0;
+					}
+				}
+#if defined(RTABMAP_PDAL) || defined(RTABMAP_LIBLAS)
+				else if(!QFileInfo(path).suffix().isEmpty())
+				{
+					std::vector<int> cameraIds(pointToPixels.size(), 0);
+					for(size_t i=0;i<pointToPixels.size(); ++i)
+					{
+						if(!pointToPixels[i].empty())
+						{
+							cameraIds[i] = pointToPixels[i].begin()->first;
+						}
+					}
+					
+					{
+#ifdef RTABMAP_PDAL
+						success = savePDALFile(path.toStdString(), *clouds.begin()->second, cameraIds, binaryMode) == 0;
+#else
+						UERROR("Normals cannot be save with current libLAS implementation, disable normals estimation.");
+						success = false;
+#endif
+					}
+				}
+#endif
+				else
+				{
+					UERROR("Extension not recognized! (%s) Should be one of (*.ply *.pcd *.las).", QFileInfo(path).suffix().toStdString().c_str());
+				}
+				if(success)
+				{
+					_progressDialog->incrementStep();
+					_progressDialog->appendText(tr("Saving the cloud (%1 points)... done.").arg(cloudSize));
+
+					QMessageBox::information(this, tr("Save successful!"), tr("Cloud saved to \"%1\"").arg(path));
+				}
+				else
+				{
+					QMessageBox::warning(this, tr("Save failed!"), tr("Failed to save to \"%1\"").arg(path));
+				}
+			}
+			else
+			{
+				QMessageBox::warning(this, tr("Save failed!"), tr("Cloud is empty..."));
+			}
+		}
+	}
+	else if(clouds.size())
+	{
+		QStringList items;
+		items.push_back("ply");
+		items.push_back("pcd");
+#ifdef RTABMAP_PDAL
+		QString extensions = tr("Save clouds to (*.ply *.pcd");
+		std::list<std::string> pdalFormats = uSplit(getPDALSupportedWriters(), ' ');
+		for(std::list<std::string>::iterator iter=pdalFormats.begin(); iter!=pdalFormats.end(); ++iter)
+		{
+			if(iter->compare("ply") == 0 || iter->compare("pcd") == 0)
+			{
+				continue;
+			}
+			extensions += QString(" *.") + iter->c_str();
+
+			items.push_back(iter->c_str());
+		}
+		extensions += ")...";
+#elif defined(RTABMAP_LIBLAS)
+		QString extensions = tr("Save clouds to (*.ply *.pcd *.las *.laz)...");
+#else
+		QString extensions = tr("Save clouds to (*.ply *.pcd)...");
+#endif
+		QString path = QFileDialog::getExistingDirectory(this, extensions, workingDirectory, QFileDialog::ShowDirsOnly);
+		if(!path.isEmpty())
+		{
+			bool ok = false;
+			QString suffix = QInputDialog::getItem(this, tr("File format"), tr("Which format?"), items, 0, false, &ok);
+
+			if(ok)
+			{
+				QString prefix = QInputDialog::getText(this, tr("File prefix"), tr("Prefix:"), QLineEdit::Normal, "cloud", &ok);
+
+				if(ok)
+				{
+					for(std::map<int, pcl::PCLPointCloud2::Ptr >::const_iterator iter=clouds.begin(); iter!=clouds.end(); ++iter)
+					{
+						int cloudSize = clouds.begin()->second->height * clouds.begin()->second->width;
+						if(cloudSize)
+						{
+							pcl::PCLPointCloud2::Ptr transformedCloud;
+							transformedCloud = util3d::transformPointCloud(iter->second, !_ui->comboBox_frame->isEnabled()||_ui->comboBox_frame->currentIndex()==0?poses.at(iter->first):Transform::getIdentity());
+
+							QString pathFile = path+QDir::separator()+QString("%1%2.%3").arg(prefix).arg(iter->first).arg(suffix);
+							bool success =false;
+							if(suffix == "pcd")
+							{
+								{
+									success = pcl::io::savePCDFile(pathFile.toStdString(), *transformedCloud, Eigen::Vector4f::Zero(), Eigen::Quaternionf::Identity(), binaryMode) == 0;
+								}
+							}
+							else if(suffix == "ply")
+							{
+								{
+									success = pcl::io::savePLYFile(pathFile.toStdString(), *transformedCloud, Eigen::Vector4f::Zero(), Eigen::Quaternionf::Identity(), binaryMode) == 0;
+								}
+							}
+#if defined(RTABMAP_PDAL) || defined(RTABMAP_LIBLAS)
+							else if(!suffix.isEmpty())
+							{
+								{
+#ifdef RTABMAP_PDAL
+									success = savePDALFile(pathFile.toStdString(), *transformedCloud) == 0;
+#else
+									UERROR("Normals cannot be save with current libLAS implementation, disable normals estimation.");
+									success = false;
+#endif
+								}
+							}
+#endif
+							else
+							{
+								UFATAL("Extension not recognized! (%s)", suffix.toStdString().c_str());
+							}
+							if(success)
+							{
+								_progressDialog->appendText(tr("Saved cloud %1 (%2 points) to %3.").arg(iter->first).arg(cloudSize).arg(pathFile));
+							}
+							else
+							{
+								_progressDialog->appendText(tr("Failed saving cloud %1 (%2 points) to %3.").arg(iter->first).arg(cloudSize).arg(pathFile), Qt::darkRed);
+								_progressDialog->setAutoClose(false);
+							}
+						}
+						else
+						{
+							_progressDialog->appendText(tr("Cloud %1 is empty!").arg(iter->first));
+						}
+						_progressDialog->incrementStep();
+						QApplication::processEvents();
+						if(_canceled)
+						{
+							return;
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
 void ExportCloudsDialog::saveMeshes(
 		const QString & workingDirectory,
 		const std::map<int, Transform> & poses,
