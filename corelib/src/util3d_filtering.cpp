@@ -433,6 +433,7 @@ PointCloud2 rangeFiltering(
         extract.setIndices(inliers);
         extract.setNegative(true);
         extract.filter(output);
+		output.is_dense = input->is_dense;
       }
     }
 
@@ -462,6 +463,7 @@ PointCloud2 rangeFiltering(
         extract.setIndices(inliers);
         extract.setNegative(false);
         extract.filter(output);
+		output.is_dense = input->is_dense;		
       }
     }
 
@@ -499,7 +501,11 @@ PointCloud2 downsample(
 		const PointCloud2 & pointCloud2,
 		int step)
 {
-	return PointCloud2(downsample(pointCloud2.cloud(), step), pointCloud2.localTransform());
+	pcl::PCLPointCloud2::Ptr cloudIn;
+	cloudIn = pcl::make_shared<pcl::PCLPointCloud2>(pointCloud2.cloud());
+	pcl::PCLPointCloud2::Ptr cloudOut = downsample(cloudIn, step);
+
+	return PointCloud2(*cloudOut, pointCloud2.localTransform());
 }
 template<typename PointT>
 pcl::IndicesPtr downsampleIndex(
@@ -613,12 +619,13 @@ pcl::PCLPointCloud2::Ptr downsample(const pcl::PCLPointCloud2::Ptr & cloud, int 
 	pcl::PCLPointCloud2::Ptr output(new pcl::PCLPointCloud2);
 
 	pcl::PointCloud<pcl::PointXYZ>::Ptr xyz(new pcl::PointCloud<pcl::PointXYZ>);	
-	fromPCLPointCloud2(*cloud, *xyz);
+	pcl::PCLPointCloud2::Ptr input = util3d::removeNaNFromPointCloud(cloud);
+	fromPCLPointCloud2(*input, *xyz);
 
 	if(step <= 1 || (int)xyz->size() <= step)
 	{
 		// no sampling
-		*output = *cloud;
+		*output = *input;
 	}
 	else
 	{
@@ -627,12 +634,13 @@ pcl::PCLPointCloud2::Ptr downsample(const pcl::PCLPointCloud2::Ptr & cloud, int 
 		// Create the filtering object
     	pcl::ExtractIndices<pcl::PCLPointCloud2> extract;
 		// Extract the inliers
-		extract.setInputCloud(cloud);
+		extract.setInputCloud(input);
 		extract.setIndices(indices);
 		extract.setNegative(false);
-    	extract.filter(*output);			
+    	extract.filter(*output);
 	}
-		
+
+	output->is_dense = true;			
 	return output;
 }
 
@@ -977,18 +985,10 @@ pcl::IndicesPtr passThrough(const pcl::PointCloud<pcl::PointXYZINormal>::Ptr & c
 }
 pcl::IndicesPtr passThrough(const pcl::PCLPointCloud2::Ptr & cloud, const pcl::IndicesPtr & indices, const std::string & axis, float min, float max, bool negative)
 {
-	UASSERT_MSG(max > min, uFormat("cloud=%d, max=%f min=%f axis=%s", (int)(cloud->height*cloud->width), max, min, axis.c_str()).c_str());
-	UASSERT(axis.compare("x") == 0 || axis.compare("y") == 0 || axis.compare("z") == 0);
+	pcl::PointCloud<pcl::PointXYZ>::Ptr xyz(new pcl::PointCloud<pcl::PointXYZ>);	
+	fromPCLPointCloud2(*cloud, *xyz);
 
-	pcl::IndicesPtr output(new std::vector<int>);
-	pcl::PassThrough<pcl::PCLPointCloud2> filter;
-	filter.setNegative(negative);
-	filter.setFilterFieldName(axis);
-	filter.setFilterLimits(min, max);
-	filter.setInputCloud(cloud);
-	filter.setIndices(indices);
-	filter.filter(*output);
-	return output;
+	return passThroughImpl<pcl::PointXYZ>(xyz, indices, axis, min, max, negative);
 }
 
 template<typename PointT>

@@ -760,10 +760,10 @@ void LocalCloudMaker::createLocalMap(
 		viewPointInOut.z = viewpointRotated.z();
 	}
 
-
 	if(cloud2.size())
 	{
-		pcl::PCLPointCloud2::Ptr cloud_ptr = pcl::make_shared<pcl::PCLPointCloud2>(cloud2.cloud());
+		rtabmap::Transform localTransform = cloud2.localTransform();
+		pcl::PCLPointCloud2::Ptr cloud_ptr = util3d::transformPointCloud(pcl::make_shared<pcl::PCLPointCloud2>(cloud2.cloud()), localTransform);
 		pcl::PCLPointCloud2::Ptr cloudSegmented = segmentCloud(cloud_ptr, pcl::IndicesPtr(new std::vector<int>), pose, viewPointInOut, groundIndices, obstacleIndices);
 
 		if((obstacleIndices->size() || groundIndices->size()))

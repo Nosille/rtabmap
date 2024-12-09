@@ -50,7 +50,7 @@ public:
 	PointCloud2(const pcl::PCLPointCloud2 & cloud,
 			const Transform & localTransform = Transform::getIdentity());
 
-	const pcl::PCLPointCloud2 & cloud() const {return cloud_;}
+	pcl::PCLPointCloud2 cloud() const {return cloud_;}
 	Transform localTransform() const {return localTransform_;}
 
 	bool empty() const {return cloud_.data.empty();}

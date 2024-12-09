@@ -1806,19 +1806,48 @@ void DBDriverSqlite3::loadNodeDataQuery(std::list<Signature *> & signatures, boo
 					//pc2_fields
 					data = sqlite3_column_blob(ppStmt, index);
 					dataSize = sqlite3_column_bytes(ppStmt, index++);
-					// if(dataSize > 0 && data)
-					// {
-					// 	memcpy(pointCloud2Compressed.fields.data(), data, dataSize); //pointCloud2 fields
-					// }
+					
+					if(dataSize > 0 && data)
+					{
+						uint8_t * dataInt = (uint8_t*)data;
+						std::vector<uint8_t> pc2Fields(dataSize);
+						memcpy(pc2Fields.data(), dataInt, dataSize*sizeof(uint8_t));						
+
+						uint8_t* inputPointer = pc2Fields.data();
+						for (size_t outputIndex = 0; outputIndex < pointCloud2Compressed.fields.size(); outputIndex++)
+						{
+							uint32_t string_length;
+							
+							memcpy(&pointCloud2Compressed.fields[outputIndex].datatype, inputPointer, sizeof(uint8_t));
+							inputPointer += sizeof(uint8_t);
+							memcpy(&pointCloud2Compressed.fields[outputIndex].offset, inputPointer,  sizeof(uint32_t));
+							inputPointer += sizeof(uint32_t);							
+							memcpy(&pointCloud2Compressed.fields[outputIndex].count, inputPointer, sizeof(uint32_t));
+							inputPointer += sizeof(uint32_t);									
+							memcpy(&string_length, inputPointer,sizeof(uint32_t));
+							inputPointer += sizeof(uint32_t);
+
+							std::vector<char> str(string_length);										
+							memcpy(str.data(),inputPointer, string_length);
+							inputPointer += string_length;
+							std::copy(str.begin(), str.end(), std::back_inserter(pointCloud2Compressed.fields[outputIndex].name));
+						}
+					}
 
 					//pc2_data
 					data = sqlite3_column_blob(ppStmt, index);
 					dataSize = sqlite3_column_bytes(ppStmt, index++);
-					// if(dataSize>4 && data)
-					// {
-					// 	memcpy(pointCloud2Compressed.data.data(), data, dataSize); //pointCloud2 data
-					// }
-				}	
+
+					if(dataSize>0 && data)
+					{
+						uint8_t * dataInt = (uint8_t*)data;
+						std::vector<uint8_t> pc2Data(dataSize);
+						memcpy(pc2Data.data(), dataInt, dataSize*sizeof(uint8_t));
+
+						pointCloud2Compressed.data.resize(dataSize);
+						memcpy(pointCloud2Compressed.data.data(), pc2Data.data(), dataSize*sizeof(uint8_t)); //pointCloud2 data
+					}
+				}
 
 				if(uStrNumCmp(_version, "0.11.10") < 0 || userData)
 				{
@@ -2306,7 +2335,7 @@ bool DBDriverSqlite3::getPointCloud2InfoQuery(
 
 		if(uStrNumCmp(_version, "1.0.0") >= 0)
 		{
-			query << "SELECT pc2_info "
+			query << "SELECT pc2_info, pc2_fields "
 				  << "FROM Data "
 				  << "WHERE id = " << signatureId
 				  <<";";
@@ -2353,6 +2382,37 @@ bool DBDriverSqlite3::getPointCloud2InfoQuery(
 	
 				info = rtabmap::PointCloud2(cloud, localTransform);
 
+			}
+
+			//pc2_fields
+			data = sqlite3_column_blob(ppStmt, index);
+			dataSize = sqlite3_column_bytes(ppStmt, index++);
+			
+			if(dataSize > 0 && data)
+			{
+				uint8_t * dataInt = (uint8_t*)data;
+				std::vector<uint8_t> pc2Fields(dataSize);
+				memcpy(pc2Fields.data(), dataInt, dataSize*sizeof(uint8_t));						
+
+				uint8_t* inputPointer = pc2Fields.data();
+				for (size_t outputIndex = 0; outputIndex < cloud.fields.size(); outputIndex++)
+				{
+					uint32_t string_length;
+					
+					memcpy(&cloud.fields[outputIndex].datatype, inputPointer, sizeof(uint8_t));
+					inputPointer += sizeof(uint8_t);
+					memcpy(&cloud.fields[outputIndex].offset, inputPointer,  sizeof(uint32_t));
+					inputPointer += sizeof(uint32_t);							
+					memcpy(&cloud.fields[outputIndex].count, inputPointer, sizeof(uint32_t));
+					inputPointer += sizeof(uint32_t);									
+					memcpy(&string_length, inputPointer,sizeof(uint32_t));
+					inputPointer += sizeof(uint32_t);
+
+					std::vector<char> str(string_length);										
+					memcpy(str.data(),inputPointer, string_length);
+					inputPointer += string_length;
+					std::copy(str.begin(), str.end(), std::back_inserter(cloud.fields[outputIndex].name));
+				}
 			}
 
 			rc = sqlite3_step(ppStmt); // next result...
@@ -6307,7 +6367,7 @@ void DBDriverSqlite3::stepScanUpdate(sqlite3_stmt * ppStmt, int nodeId, const La
 	UASSERT_MSG(rc == SQLITE_OK, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
 }
 
-void DBDriverSqlite3::stepPointCloud2Update(sqlite3_stmt * ppStmt, int nodeId, const PointCloud2 & cloud) const
+void DBDriverSqlite3::stepPointCloud2Update(sqlite3_stmt * ppStmt, int nodeId, const PointCloud2 & pointCloud2) const
 {
 	if(!ppStmt)
 	{
@@ -6319,19 +6379,19 @@ void DBDriverSqlite3::stepPointCloud2Update(sqlite3_stmt * ppStmt, int nodeId, c
 
 	//pc2_info
 	std::vector<float> pc2Info;
-	if((cloud.cloud().height > 0 && cloud.cloud().width > 0) ||
-			(!cloud.localTransform().isNull() && !cloud.localTransform().isIdentity()))
+	if((pointCloud2.size() > 0) ||
+			(!pointCloud2.localTransform().isNull() && !pointCloud2.localTransform().isIdentity()))
 	{
 
 		pc2Info.resize(7 + Transform().size());
-		pc2Info[0] = cloud.cloud().height;
-		pc2Info[1] = cloud.cloud().width;
-		pc2Info[2] = cloud.cloud().point_step;
-		pc2Info[3] = cloud.cloud().row_step;
-		pc2Info[4] = cloud.cloud().is_bigendian;
-		pc2Info[5] = cloud.cloud().is_dense;
-		pc2Info[6] = cloud.cloud().fields.size();
-		const Transform & localTransform = cloud.localTransform();
+		pc2Info[0] = pointCloud2.cloud().height;
+		pc2Info[1] = pointCloud2.cloud().width;
+		pc2Info[2] = pointCloud2.cloud().point_step;
+		pc2Info[3] = pointCloud2.cloud().row_step;
+		pc2Info[4] = pointCloud2.cloud().is_bigendian;
+		pc2Info[5] = pointCloud2.cloud().is_dense;
+		pc2Info[6] = pointCloud2.cloud().fields.size();
+		const Transform & localTransform = pointCloud2.localTransform();
 		memcpy(pc2Info.data()+7, localTransform.data(), localTransform.size()*sizeof(float));
 	
 	}
@@ -6346,11 +6406,36 @@ void DBDriverSqlite3::stepPointCloud2Update(sqlite3_stmt * ppStmt, int nodeId, c
 	}
 	UASSERT_MSG(rc == SQLITE_OK, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
 
-
 	// pc2_fields
-	if((!(cloud.cloud().fields.size())) > 0)
+	std::vector<uint8_t> pc2Fields;
+	if((pointCloud2.size() > 0) ||
+			(!pointCloud2.localTransform().isNull() && !pointCloud2.localTransform().isIdentity()))
 	{
-		rc = sqlite3_bind_blob(ppStmt, index++, cloud.cloud().fields.data(), cloud.cloud().fields.size() * sizeof(pcl::PCLPointField), SQLITE_STATIC);
+		pcl::PCLPointCloud2 cloud = pointCloud2.cloud();
+		std::vector<uint8_t> field;
+		for (size_t fieldIndex = 0; fieldIndex < cloud.fields.size(); fieldIndex++)
+		{
+			std::string fieldName = cloud.fields[fieldIndex].name;
+			std::vector<char> str;
+			std::copy(fieldName.begin(), fieldName.end(), std::back_inserter(str));
+			uint32_t string_length = str.size();
+			
+			field.clear();
+			field.resize(sizeof(uint8_t) + sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint32_t) + str.size());
+
+			memcpy(field.data(), &cloud.fields[fieldIndex].datatype, sizeof(uint8_t));
+			memcpy(field.data() + sizeof(uint8_t), &cloud.fields[fieldIndex].offset, sizeof(uint32_t));
+			memcpy(field.data() + sizeof(uint8_t) + sizeof(uint32_t), &cloud.fields[fieldIndex].count, sizeof(uint32_t));
+			memcpy(field.data() + sizeof(uint8_t) + sizeof(uint32_t) + sizeof(uint32_t), &string_length, sizeof(uint32_t));
+			memcpy(field.data() + sizeof(uint8_t) + sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint32_t), str.data(), string_length);
+
+			std::copy(field.begin(), field.end(), std::back_inserter(pc2Fields));
+		}
+	}
+	
+	if(pc2Fields.size())
+	{
+		rc = sqlite3_bind_blob(ppStmt, index++, pc2Fields.data(), pc2Fields.size() * sizeof(uint8_t), SQLITE_STATIC);
 	}
 	else
 	{
@@ -6359,9 +6444,17 @@ void DBDriverSqlite3::stepPointCloud2Update(sqlite3_stmt * ppStmt, int nodeId, c
 	UASSERT_MSG(rc == SQLITE_OK, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
 
 	// pc2_data
-	if(!cloud.empty())
+	std::vector<uint8_t> pc2Data;	
+	if(!pointCloud2.isEmpty())
 	{
-		rc = sqlite3_bind_blob(ppStmt, index++, cloud.cloud().data.data(), cloud.cloud().data.size() * sizeof(std::uint8_t), SQLITE_STATIC);
+		pcl::PCLPointCloud2 cloud = pointCloud2.cloud();
+		pc2Data.resize(cloud.data.size());
+		memcpy(pc2Data.data(), cloud.data.data(), cloud.data.size() * sizeof(uint8_t));
+	}
+
+	if(pc2Data.size())
+	{
+		rc = sqlite3_bind_blob(ppStmt, index++, pc2Data.data(), pc2Data.size() * sizeof(uint8_t), SQLITE_STATIC);
 	}
 	else
 	{
@@ -6628,8 +6721,7 @@ void DBDriverSqlite3::stepSensorData(sqlite3_stmt * ppStmt,
 
 	// pc2_info
 	std::vector<float> pc2Info;
-
-	if(sensorData.pointCloud2Compressed().cloud().width > 0 ||
+	if(sensorData.pointCloud2Compressed().size() > 0 ||
 			(!sensorData.pointCloud2Compressed().localTransform().isNull() && !sensorData.pointCloud2Compressed().localTransform().isIdentity()))
 	{
 		pc2Info.resize(7 + Transform().size());
@@ -6639,7 +6731,7 @@ void DBDriverSqlite3::stepSensorData(sqlite3_stmt * ppStmt,
 		pc2Info[3] = sensorData.pointCloud2Compressed().cloud().row_step;
 		pc2Info[4] = sensorData.pointCloud2Compressed().cloud().is_bigendian;
 		pc2Info[5] = sensorData.pointCloud2Compressed().cloud().is_dense;
-		pc2Info[6] = sensorData.pointCloud2Compressed().cloud().fields.size();		
+		pc2Info[6] = sensorData.pointCloud2Compressed().cloud().fields.size();
 		const Transform & localTransform = sensorData.pointCloud2Compressed().localTransform();
 		memcpy(pc2Info.data()+7, localTransform.data(), localTransform.size()*sizeof(float));
 	}
@@ -6655,9 +6747,35 @@ void DBDriverSqlite3::stepSensorData(sqlite3_stmt * ppStmt,
 	UASSERT_MSG(rc == SQLITE_OK, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
 
 	// pc2_fields
-	if(!sensorData.pointCloud2Compressed().isEmpty())
+	std::vector<uint8_t> pc2Fields;	
+	if(sensorData.pointCloud2Compressed().size() > 0 ||
+			(!sensorData.pointCloud2Compressed().localTransform().isNull() && !sensorData.pointCloud2Compressed().localTransform().isIdentity()))
 	{
-		rc = sqlite3_bind_blob(ppStmt, index++, sensorData.pointCloud2Compressed().cloud().fields.data(), sensorData.pointCloud2Compressed().cloud().fields.size() * sizeof(pcl::PCLPointField), SQLITE_STATIC);
+		pcl::PCLPointCloud2 cloud = sensorData.pointCloud2Compressed().cloud();
+		std::vector<uint8_t> field;
+		for (size_t fieldIndex = 0; fieldIndex < cloud.fields.size(); fieldIndex++)
+		{
+			std::string fieldName = cloud.fields[fieldIndex].name;
+			std::vector<char> str;
+			std::copy(fieldName.begin(), fieldName.end(), std::back_inserter(str));
+			uint32_t string_length = str.size();
+			
+			field.clear();
+			field.resize(sizeof(uint8_t) + sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint32_t) + str.size());
+
+			memcpy(field.data(), &cloud.fields[fieldIndex].datatype, sizeof(uint8_t));
+			memcpy(field.data() + sizeof(uint8_t), &cloud.fields[fieldIndex].offset, sizeof(uint32_t));
+			memcpy(field.data() + sizeof(uint8_t) + sizeof(uint32_t), &cloud.fields[fieldIndex].count, sizeof(uint32_t));
+			memcpy(field.data() + sizeof(uint8_t) + sizeof(uint32_t) + sizeof(uint32_t), &string_length, sizeof(uint32_t));
+			memcpy(field.data() + sizeof(uint8_t) + sizeof(uint32_t) + sizeof(uint32_t) + sizeof(uint32_t), str.data(), string_length);
+
+			std::copy(field.begin(), field.end(), std::back_inserter(pc2Fields));
+		}
+	}
+	
+	if(pc2Fields.size())
+	{
+		rc = sqlite3_bind_blob(ppStmt, index++, pc2Fields.data(), pc2Fields.size() * sizeof(uint8_t), SQLITE_STATIC);
 	}
 	else
 	{
@@ -6666,9 +6784,17 @@ void DBDriverSqlite3::stepSensorData(sqlite3_stmt * ppStmt,
 	UASSERT_MSG(rc == SQLITE_OK, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
 
 	// pc2_data
+	std::vector<uint8_t> pc2Data;	
 	if(!sensorData.pointCloud2Compressed().isEmpty())
 	{
-		rc = sqlite3_bind_blob(ppStmt, index++, sensorData.pointCloud2Compressed().cloud().data.data(), sensorData.pointCloud2Compressed().cloud().data.size() * sizeof(std::uint8_t), SQLITE_STATIC);
+		pcl::PCLPointCloud2 cloud = sensorData.pointCloud2Compressed().cloud();
+		pc2Data.resize(cloud.data.size());
+		memcpy(pc2Data.data(), cloud.data.data(), cloud.data.size() * sizeof(uint8_t));
+	}
+
+	if(pc2Data.size())
+	{
+		rc = sqlite3_bind_blob(ppStmt, index++, pc2Data.data(), pc2Data.size() * sizeof(uint8_t), SQLITE_STATIC);
 	}
 	else
 	{

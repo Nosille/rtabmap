@@ -1037,9 +1037,9 @@ void segmentObstaclesFromGround(
 		const Eigen::Vector4f & viewPoint,
 		float groundNormalsUp)
 {
-	pcl::PointCloud<pcl::PointXYZ>::Ptr xyz;
+	pcl::PointCloud<pcl::PointXYZ>::Ptr xyz(new pcl::PointCloud<pcl::PointXYZ>);
 	fromPCLPointCloud2(*cloud, *xyz);
-	
+
 	util3d::segmentObstaclesFromGround<pcl::PointXYZ>(xyz, indices, ground, obstacles, normalKSearch, groundNormalAngle, clusterRadius, minClusterSize,
 		segmentFlatObstacles, maxGroundHeight, flatObstacles, viewPoint, groundNormalsUp);
 }
