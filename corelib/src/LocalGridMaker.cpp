@@ -258,7 +258,26 @@ void LocalGridMaker::createLocalMap(
 
 				UDEBUG("scan format=%d", scan.format());
 
+				bool normalSegmentationTmp = normalsSegmentation_;
+				float minGroundHeightTmp = minGroundHeight_;
+				float maxGroundHeightTmp = maxGroundHeight_;
+				if(scan.is2d())
+				{
+					// if 2D, assume the whole scan is obstacle
+					normalsSegmentation_ = false;
+					minGroundHeight_ = std::numeric_limits<int>::min();
+					maxGroundHeight_ = std::numeric_limits<int>::min()+100;
+				}
+
 				createLocalMap(scan, node.getPose(), groundCells, obstacleCells, emptyCells, viewPoint);
+
+				if(scan.is2d())
+				{
+					// restore
+					normalsSegmentation_ = normalSegmentationTmp;
+					minGroundHeight_ = minGroundHeightTmp;
+					maxGroundHeight_ = maxGroundHeightTmp;
+				}
 			}
 			else
 			{
