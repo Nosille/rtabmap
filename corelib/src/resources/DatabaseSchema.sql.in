@@ -36,7 +36,11 @@ CREATE TABLE Data (
 	
 	scan BLOB,                -- compressed data (Laser scan)
 	scan_info BLOB,           -- scan_max_pts, scan_max_range, scan_format, local_transform
-	
+
+	pc2_info BLOB,            -- metadata (height, width, point_step, row_step, is_bigendian, is_dense)
+	pc2_fields BLOB,          -- list of fields (pcl::PCLPointField)
+	pc2_data BLOB,		      -- data (PointCloud2)
+
 	ground_cells BLOB,        -- compressed data (occupancy grid)
 	obstacle_cells BLOB,      -- compressed data (occupancy grid)
 	empty_cells BLOB,         -- compressed data (occupancy grid)

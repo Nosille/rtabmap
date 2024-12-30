@@ -67,7 +67,7 @@ void denseMeshPostProcessing(
 		{
 			hasNormals = true;
 		}
-		else if(mesh->cloud.fields[i].name.compare("rgb") == 0)
+		else if(mesh->cloud.fields[i].name.compare("rgb") == 0 || mesh->cloud.fields[i].name.compare("rgba") == 0)
 		{
 			hasColors = true;
 		}

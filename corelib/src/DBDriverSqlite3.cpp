@@ -1761,7 +1761,7 @@ void DBDriverSqlite3::loadNodeDataQuery(std::list<Signature *> & signatures, boo
 						}
 					}
 				}
-
+			
 				// Occupancy grid
 				cv::Mat groundCellsCompressed;
 				cv::Mat obstacleCellsCompressed;
@@ -1806,6 +1806,17 @@ void DBDriverSqlite3::loadNodeDataQuery(std::list<Signature *> & signatures, boo
 					viewPoint.z = sqlite3_column_double(ppStmt, index++);
 				}
 
+				if(images)
+				{
+					if(models.size())
+					{
+						(*iter)->sensorData().setRGBDImage(imageCompressed, depthOrRightCompressed, models);
+					}
+					else
+					{
+						(*iter)->sensorData().setStereoImage(imageCompressed, depthOrRightCompressed, stereoModels);
+					}
+				}
 				if(scan)
 				{
 					LaserScan laserScan;
@@ -1819,22 +1830,10 @@ void DBDriverSqlite3::loadNodeDataQuery(std::list<Signature *> & signatures, boo
 					}
 					(*iter)->sensorData().setLaserScan(laserScan);
 				}
-				if(images)
-				{
-					if(models.size())
-					{
-						(*iter)->sensorData().setRGBDImage(imageCompressed, depthOrRightCompressed, models);
-					}
-					else
-					{
-						(*iter)->sensorData().setStereoImage(imageCompressed, depthOrRightCompressed, stereoModels);
-					}
-				}
 				if(userData)
 				{
 					(*iter)->sensorData().setUserData(userDataCompressed);
 				}
-
 				if(occupancyGrid)
 				{
 					(*iter)->sensorData().setOccupancyGrid(groundCellsCompressed, obstacleCellsCompressed, emptyCellsCompressed, cellSize, viewPoint);
@@ -6182,7 +6181,11 @@ void DBDriverSqlite3::stepScanUpdate(sqlite3_stmt * ppStmt, int nodeId, const La
 std::string DBDriverSqlite3::queryStepSensorData() const
 {
 	UASSERT(uStrNumCmp(_version, "0.10.0") >= 0);
-	if(uStrNumCmp(_version, "0.16.0") >= 0)
+	if(uStrNumCmp(_version, "1.0.0") >= 0)
+	{
+		return "INSERT INTO Data(id, image, depth, calibration, scan_info, scan, pc2_info, pc2_fields, pc2_data, user_data, ground_cells, obstacle_cells, empty_cells, cell_size, view_point_x, view_point_y, view_point_z) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
+	}
+	else if(uStrNumCmp(_version, "0.16.0") >= 0)
 	{
 		return "INSERT INTO Data(id, image, depth, calibration, scan_info, scan, user_data, ground_cells, obstacle_cells, empty_cells, cell_size, view_point_x, view_point_y, view_point_z) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
 	}
@@ -6340,6 +6343,7 @@ void DBDriverSqlite3::stepSensorData(sqlite3_stmt * ppStmt,
 	}
 	UASSERT_MSG(rc == SQLITE_OK, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
 
+	//scan_info
 	std::vector<float> scanInfo;
 	if(uStrNumCmp(_version, "0.11.10") >= 0)
 	{
@@ -6419,9 +6423,9 @@ void DBDriverSqlite3::stepSensorData(sqlite3_stmt * ppStmt,
 	}
 	UASSERT_MSG(rc == SQLITE_OK, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
 
+	// user_data
 	if(uStrNumCmp(_version, "0.10.1") >= 0)
 	{
-		// user_data
 		if(!sensorData.userDataCompressed().empty())
 		{
 			rc = sqlite3_bind_blob(ppStmt, index++, sensorData.userDataCompressed().data, (int)sensorData.userDataCompressed().cols, SQLITE_STATIC);
@@ -6433,6 +6437,7 @@ void DBDriverSqlite3::stepSensorData(sqlite3_stmt * ppStmt,
 		UASSERT_MSG(rc == SQLITE_OK, uFormat("DB error (%s): %s", _version.c_str(), sqlite3_errmsg(_ppDb)).c_str());
 	}
 
+	// ground & obstacles
 	if(uStrNumCmp(_version, "0.11.10") >= 0)
 	{
 		//ground_cells
