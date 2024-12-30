@@ -2820,12 +2820,12 @@ bool RTABMapApp::exportMesh(
 							gains[1] = jter->second.gains[1];
 							gains[2] = jter->second.gains[2];
 
-							rtabmap::SensorData data = rtabmap_->getMemory()->getNodeData(iter->first, true, false, false, false);
+							rtabmap::SensorData data = rtabmap_->getMemory()->getNodeData(iter->first, true, false, false, false, false);
 							data.uncompressData(0, &depth);
 						}
 						else
 						{
-							rtabmap::SensorData data = rtabmap_->getMemory()->getNodeData(iter->first, true, false, false, false);
+							rtabmap::SensorData data = rtabmap_->getMemory()->getNodeData(iter->first, true, false, false, false, false);
 							data.uncompressData();
 							if(!data.imageRaw().empty() && !data.depthRaw().empty() && data.cameraModels().size() == 1)
 							{
@@ -3092,7 +3092,7 @@ bool RTABMapApp::exportMesh(
 						}
 						else
 						{
-							rtabmap::SensorData data = rtabmap_->getMemory()->getNodeData(iter->first, true, false, false, false);
+							rtabmap::SensorData data = rtabmap_->getMemory()->getNodeData(iter->first, true, false, false, false, false);
 							data.uncompressData();
 							if(!data.imageRaw().empty() && !data.depthRaw().empty() && data.cameraModels().size() == 1)
 							{
@@ -3359,7 +3359,7 @@ bool RTABMapApp::exportMesh(
 					}
 					else
 					{
-						rtabmap::SensorData data = rtabmap_->getMemory()->getNodeData(iter->first, true, true, false, false);
+						rtabmap::SensorData data = rtabmap_->getMemory()->getNodeData(iter->first, true, true, false, false, false);
 						data.uncompressData();
 						if(!data.imageRaw().empty() && !data.depthRaw().empty())
 						{

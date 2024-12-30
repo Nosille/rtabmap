@@ -254,7 +254,7 @@ protected Q_SLOTS:
 			if(stats.getLastSignatureData().sensorData().gridCellSize() > 0.0f)
 			{
 				cv::Mat groundCells, obstacleCells, emptyCells;
-				stats.getLastSignatureData().sensorData().uncompressDataConst(0, 0, 0, 0, &groundCells, &obstacleCells, &emptyCells);
+				stats.getLastSignatureData().sensorData().uncompressDataConst(0, 0, 0, 0, 0, &groundCells, &obstacleCells, &emptyCells);
 				localGrids_.add(stats.getLastSignatureData().id(), groundCells, obstacleCells, emptyCells, stats.getLastSignatureData().sensorData().gridCellSize(), stats.getLastSignatureData().sensorData().gridViewPoint());
 			}
 		}

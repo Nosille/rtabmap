@@ -107,6 +107,26 @@ SensorData::SensorData(
 	setUserData(userData);
 }
 
+// RGB-D constructor + laser scan + PC2
+SensorData::SensorData(
+		const LaserScan & laserScan,
+		const PointCloud2 & pointCloud2,
+		const cv::Mat & rgb,
+		const cv::Mat & depth,
+		const CameraModel & cameraModel,
+		int id,
+		double stamp,
+		const cv::Mat & userData) :
+		_id(id),
+		_stamp(stamp),
+		_cellSize(0.0f)
+{
+	setRGBDImage(rgb, depth, cameraModel);
+	setLaserScan(laserScan);
+	setPointCloud2(pointCloud2);
+	setUserData(userData);
+}
+
 // Multi-cameras RGB-D constructor
 SensorData::SensorData(
 		const cv::Mat & rgb,
@@ -138,6 +158,26 @@ SensorData::SensorData(
 {
 	setRGBDImage(rgb, depth, cameraModels);
 	setLaserScan(laserScan);
+	setUserData(userData);
+}
+
+// Multi-cameras RGB-D constructor + laser scan + PC2
+SensorData::SensorData(
+		const LaserScan & laserScan,
+		const PointCloud2 & pointCloud2,
+		const cv::Mat & rgb,
+		const cv::Mat & depth,
+		const std::vector<CameraModel> & cameraModels,
+		int id,
+		double stamp,
+		const cv::Mat & userData) :
+		_id(id),
+		_stamp(stamp),
+		_cellSize(0.0f)
+{
+	setRGBDImage(rgb, depth, cameraModels);
+	setLaserScan(laserScan);
+	setPointCloud2(pointCloud2);	
 	setUserData(userData);
 }
 
@@ -175,6 +215,26 @@ SensorData::SensorData(
 	setUserData(userData);
 }
 
+// Stereo constructor + 2d laser scan + PC2
+SensorData::SensorData(
+		const LaserScan & laserScan,
+		const PointCloud2 & pointCloud2,
+		const cv::Mat & left,
+		const cv::Mat & right,
+		const StereoCameraModel & cameraModel,
+		int id,
+		double stamp,
+		const cv::Mat & userData) :
+		_id(id),
+		_stamp(stamp),
+		_cellSize(0.0f)
+{
+	setStereoImage(left, right, cameraModel);
+	setLaserScan(laserScan);
+	setPointCloud2(pointCloud2);
+	setUserData(userData);
+}
+
 // Multi-Stereo constructor
 SensorData::SensorData(
 		const cv::Mat & left,
@@ -206,6 +266,26 @@ SensorData::SensorData(
 {
 	setStereoImage(left, right, cameraModels);
 	setLaserScan(laserScan);
+	setUserData(userData);
+}
+
+// Multi-Stereo constructor + 2d laser scan + PC2
+SensorData::SensorData(
+		const LaserScan & laserScan,
+		const PointCloud2 & pointCloud2,
+		const cv::Mat & left,
+		const cv::Mat & right,
+		const std::vector<StereoCameraModel> & cameraModels,
+		int id,
+		double stamp,
+		const cv::Mat & userData) :
+		_id(id),
+		_stamp(stamp),
+		_cellSize(0.0f)
+{
+	setStereoImage(left, right, cameraModels);
+	setLaserScan(laserScan);
+	setPointCloud2(pointCloud2);
 	setUserData(userData);
 }
 
@@ -398,25 +478,27 @@ void SensorData::setLaserScan(const LaserScan & laserScan, bool clearPreviousDat
 	}
 }
 
-void SensorData::setImageRaw(const cv::Mat & image)
+void SensorData::setPointCloud2(const rtabmap::PointCloud2 & pointCloud2, bool clearPreviousData)
 {
-	UASSERT(image.empty() || image.rows > 1);
-	_imageRaw = image;
-}
-void SensorData::setDepthOrRightRaw(const cv::Mat & image)
-{
-	UASSERT(image.empty() || image.rows > 1);
-	_depthOrRightRaw = image;
-}
-void SensorData::setLaserScanRaw(const LaserScan & scan)
-{
-	UASSERT(scan.isEmpty() || !scan.isCompressed());
-	_laserScanRaw = scan;
-}
-
-void SensorData::setUserDataRaw(const cv::Mat & userDataRaw)
-{
-	_userDataRaw = userDataRaw;
+	_pointCloud2Raw = pointCloud2;
+	_pointCloud2Compressed = pointCloud2;
+	
+	// if(!pointCloud2.isCompressed())
+	// {
+	// 	_pointCloud2Raw = pointCloud2;
+	// 	if(clearPreviousData)
+	// 	{
+	// 		_pointCloud2Compressed = PointCloud2();
+	// 	}
+	// }
+	// else
+	// {
+	// 	_pointCloud2Compressed = pointCloud2;
+	// 	if(clearPreviousData)
+	// 	{
+	// 		_pointCloud2Raw = PointCloud2();
+	// 	}
+	// }
 }
 
 void SensorData::setUserData(const cv::Mat & userData, bool clearPreviousData)
@@ -528,10 +610,12 @@ void SensorData::setOccupancyGrid(
 void SensorData::uncompressData()
 {
 	cv::Mat tmpA, tmpB, tmpD, tmpE, tmpF, tmpG;
-	LaserScan tmpC;
+	rtabmap::LaserScan tmpC;
+	rtabmap::PointCloud2 tmpP;
 	uncompressData(_imageCompressed.empty()?0:&tmpA,
 				_depthOrRightCompressed.empty()?0:&tmpB,
 				_laserScanCompressed.isEmpty()?0:&tmpC,
+				_pointCloud2Compressed.empty()?0:&tmpP,
 				_userDataCompressed.empty()?0:&tmpD,
 				_groundCellsCompressed.empty()?0:&tmpE,
 				_obstacleCellsCompressed.empty()?0:&tmpF,
@@ -541,7 +625,8 @@ void SensorData::uncompressData()
 void SensorData::uncompressData(
 		cv::Mat * imageRaw,
 		cv::Mat * depthRaw,
-		LaserScan * laserScanRaw,
+		rtabmap::LaserScan * laserScanRaw,
+		rtabmap::PointCloud2 * pointCloud2Raw,
 		cv::Mat * userDataRaw,
 		cv::Mat * groundCellsRaw,
 		cv::Mat * obstacleCellsRaw,
@@ -551,6 +636,7 @@ void SensorData::uncompressData(
 	if(imageRaw == 0 &&
 		depthRaw == 0 &&
 		laserScanRaw == 0 &&
+		pointCloud2Raw == 0 &&
 		userDataRaw == 0 &&
 		groundCellsRaw == 0 &&
 		obstacleCellsRaw == 0 &&
@@ -562,6 +648,7 @@ void SensorData::uncompressData(
 			imageRaw,
 			depthRaw,
 			laserScanRaw,
+			pointCloud2Raw,
 			userDataRaw,
 			groundCellsRaw,
 			obstacleCellsRaw,
@@ -602,6 +689,10 @@ void SensorData::uncompressData(
 			}
 		}
 	}
+	if(pointCloud2Raw && !pointCloud2Raw->isEmpty() && _pointCloud2Raw.isEmpty())
+	{
+		_pointCloud2Raw = *pointCloud2Raw;
+	}
 	if(userDataRaw && !userDataRaw->empty() && _userDataRaw.empty())
 	{
 		_userDataRaw = *userDataRaw;
@@ -623,7 +714,8 @@ void SensorData::uncompressData(
 void SensorData::uncompressDataConst(
 		cv::Mat * imageRaw,
 		cv::Mat * depthRaw,
-		LaserScan * laserScanRaw,
+		rtabmap::LaserScan * laserScanRaw,
+		rtabmap::PointCloud2 * pointCloud2Raw,
 		cv::Mat * userDataRaw,
 		cv::Mat * groundCellsRaw,
 		cv::Mat * obstacleCellsRaw,
@@ -640,6 +732,10 @@ void SensorData::uncompressDataConst(
 	if(laserScanRaw)
 	{
 		*laserScanRaw = _laserScanRaw;
+	}
+	if(pointCloud2Raw)
+	{
+		*pointCloud2Raw = _pointCloud2Raw;
 	}
 	if(userDataRaw)
 	{
@@ -660,6 +756,7 @@ void SensorData::uncompressDataConst(
 	if( (imageRaw && imageRaw->empty()) ||
 		(depthRaw && depthRaw->empty()) ||
 		(laserScanRaw && laserScanRaw->isEmpty()) ||
+		(pointCloud2Raw && pointCloud2Raw->empty()) ||
 		(userDataRaw && userDataRaw->empty()) ||
 		(groundCellsRaw && groundCellsRaw->empty()) ||
 		(obstacleCellsRaw && obstacleCellsRaw->empty()) ||
@@ -668,6 +765,7 @@ void SensorData::uncompressDataConst(
 		rtabmap::CompressionThread ctImage(_imageCompressed, true);
 		rtabmap::CompressionThread ctDepth(_depthOrRightCompressed, true);
 		rtabmap::CompressionThread ctLaserScan(_laserScanCompressed.data(), false);
+		// rtabmap::CompressionThread ctPointCloud2(_pointCloud2Compressed, false);
 		rtabmap::CompressionThread ctUserData(_userDataCompressed, false);
 		rtabmap::CompressionThread ctGroundCells(_groundCellsCompressed, false);
 		rtabmap::CompressionThread ctObstacleCells(_obstacleCellsCompressed, false);
@@ -686,6 +784,12 @@ void SensorData::uncompressDataConst(
 		{
 			UASSERT(_laserScanCompressed.isCompressed());
 			ctLaserScan.start();
+		}
+		if(pointCloud2Raw && pointCloud2Raw->isEmpty() && !_pointCloud2Compressed.isEmpty())
+		{
+			UASSERT(_pointCloud2Compressed.isCompressed());
+			*pointCloud2Raw = rtabmap::PointCloud2(_pointCloud2Compressed.cloud(), _pointCloud2Compressed.localTransform());
+			// ctPointCloud2.start();
 		}
 		if(userDataRaw && userDataRaw->empty() && !_userDataCompressed.empty())
 		{
@@ -710,6 +814,7 @@ void SensorData::uncompressDataConst(
 		ctImage.join();
 		ctDepth.join();
 		ctLaserScan.join();
+		// ctPointCloud2.join();
 		ctUserData.join();
 		ctGroundCells.join();
 		ctObstacleCells.join();
@@ -767,6 +872,22 @@ void SensorData::uncompressDataConst(
 				}
 			}
 		}
+		if(pointCloud2Raw && pointCloud2Raw->isEmpty())
+		{
+			*pointCloud2Raw = rtabmap::PointCloud2(_pointCloud2Compressed.cloud(), _pointCloud2Compressed.localTransform());
+
+			if(pointCloud2Raw->isEmpty())
+			{
+				if(_pointCloud2Compressed.isEmpty())
+				{
+					UWARN("Requested pointCloud2 data, but the sensor data (%d) doesn't have pointCloud2.", this->id());
+				}
+				else
+				{
+					UERROR("Requested pointCloud2 data, but failed to uncompress (%d).", this->id());
+				}
+			}
+		}
 		if(userDataRaw && userDataRaw->empty())
 		{
 			*userDataRaw = ctUserData.getUncompressedData();
@@ -814,10 +935,12 @@ unsigned long SensorData::getMemoryUsed() const // Return memory usage in Bytes
 			(_imageRaw.empty()?0:_imageRaw.total()*_imageRaw.elemSize()) +
 			(_depthOrRightCompressed.empty()?0:_depthOrRightCompressed.total()*_depthOrRightCompressed.elemSize()) +
 			(_depthOrRightRaw.empty()?0:_depthOrRightRaw.total()*_depthOrRightRaw.elemSize()) +
-			(_userDataCompressed.empty()?0:_userDataCompressed.total()*_userDataCompressed.elemSize()) +
-			(_userDataRaw.empty()?0:_userDataRaw.total()*_userDataRaw.elemSize()) +
 			(_laserScanCompressed.empty()?0:_laserScanCompressed.data().total()*_laserScanCompressed.data().elemSize()) +
 			(_laserScanRaw.empty()?0:_laserScanRaw.data().total()*_laserScanRaw.data().elemSize()) +
+			(_pointCloud2Compressed.empty()?0:_pointCloud2Compressed.cloud().data.size()) +
+			(_pointCloud2Raw.empty()?0:_pointCloud2Raw.cloud().data.size()) +
+			(_userDataCompressed.empty()?0:_userDataCompressed.total()*_userDataCompressed.elemSize()) +
+			(_userDataRaw.empty()?0:_userDataRaw.total()*_userDataRaw.elemSize()) +
 			(_groundCellsCompressed.empty()?0:_groundCellsCompressed.total()*_groundCellsCompressed.elemSize()) +
 			(_groundCellsRaw.empty()?0:_groundCellsRaw.total()*_groundCellsRaw.elemSize()) +
 			(_obstacleCellsCompressed.empty()?0:_obstacleCellsCompressed.total()*_obstacleCellsCompressed.elemSize()) +
@@ -829,7 +952,7 @@ unsigned long SensorData::getMemoryUsed() const // Return memory usage in Bytes
 			(_descriptors.empty()?0:_descriptors.total()*_descriptors.elemSize());
 }
 
-void SensorData::clearCompressedData(bool images, bool scan, bool userData)
+void SensorData::clearCompressedData(bool images, bool scan, bool pointCloud2, bool userData)
 {
 	if(images)
 	{
@@ -840,12 +963,16 @@ void SensorData::clearCompressedData(bool images, bool scan, bool userData)
 	{
 		_laserScanCompressed.clear();
 	}
+	if(pointCloud2)
+	{
+		_pointCloud2Compressed.clear();
+	}
 	if(userData)
 	{
 		_userDataCompressed=cv::Mat();
-	}
+	}	
 }
-void SensorData::clearRawData(bool images, bool scan, bool userData)
+void SensorData::clearRawData(bool images, bool scan, bool userData, bool pointCloud2)
 {
 	if(images)
 	{
@@ -855,6 +982,10 @@ void SensorData::clearRawData(bool images, bool scan, bool userData)
 	if(scan)
 	{
 		_laserScanRaw.clear();
+	}
+	if(pointCloud2)
+	{
+		_pointCloud2Raw.clear();
 	}
 	if(userData)
 	{

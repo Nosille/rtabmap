@@ -172,6 +172,14 @@ long DBDriver::getLaserScansMemoryUsed() const
 	_dbSafeAccessMutex.unlock();
 	return bytes;
 }
+long DBDriver::getPointCloud2MemoryUsed() const
+{
+	long bytes;
+	_dbSafeAccessMutex.lock();
+	bytes = getPointCloud2MemoryUsedQuery();
+	_dbSafeAccessMutex.unlock();
+	return bytes;
+}
 long DBDriver::getUserDataMemoryUsed() const
 {
 	long bytes;
@@ -531,6 +539,15 @@ void DBDriver::updateLaserScan(int nodeId, const LaserScan & scan)
 	_dbSafeAccessMutex.unlock();
 }
 
+void DBDriver::updatePointCloud2(int nodeId, const PointCloud2 & cloud)
+{
+	_dbSafeAccessMutex.lock();
+	this->updatePointCloud2Query(
+			nodeId,
+			cloud);
+	_dbSafeAccessMutex.unlock();
+}
+
 void DBDriver::load(VWDictionary * dictionary, bool lastStateOnly) const
 {
 	_dbSafeAccessMutex.lock();
@@ -656,14 +673,14 @@ void DBDriver::loadWords(const std::set<int> & wordIds, std::list<VisualWord *> 
 	}
 }
 
-void DBDriver::loadNodeData(Signature * signature, bool images, bool scan, bool userData, bool occupancyGrid) const
+void DBDriver::loadNodeData(Signature * signature, bool images, bool scan, bool pointCloud2, bool userData, bool occupancyGrid) const
 {
 	std::list<Signature *> signatures;
 	signatures.push_back(signature);
-	this->loadNodeData(signatures, images, scan, userData, occupancyGrid);
+	this->loadNodeData(signatures, images, scan, pointCloud2, userData, occupancyGrid);
 }
 
-void DBDriver::loadNodeData(std::list<Signature *> & signatures, bool images, bool scan, bool userData, bool occupancyGrid) const
+void DBDriver::loadNodeData(std::list<Signature *> & signatures, bool images, bool scan, bool pointCloud2, bool userData, bool occupancyGrid) const
 {
 	// Don't look in the trash, we assume that if we want to load
 	// data of a signature, it is not in thrash! Print an error if so.
@@ -679,14 +696,14 @@ void DBDriver::loadNodeData(std::list<Signature *> & signatures, bool images, bo
 	_trashesMutex.unlock();
 
 	_dbSafeAccessMutex.lock();
-	this->loadNodeDataQuery(signatures, images, scan, userData, occupancyGrid);
+	this->loadNodeDataQuery(signatures, images, scan, pointCloud2, userData, occupancyGrid);
 	_dbSafeAccessMutex.unlock();
 }
 
 void DBDriver::getNodeData(
 		int signatureId,
 		SensorData & data,
-		bool images, bool scan, bool userData, bool occupancyGrid) const
+		bool images, bool scan, bool pointCloud2, bool userData, bool occupancyGrid) const
 {
 	bool found = false;
 	// look in the trash
@@ -697,6 +714,7 @@ void DBDriver::getNodeData(
 		if((!s->isSaved() ||
 			((!images || !s->sensorData().imageCompressed().empty()) &&
 			 (!scan || !s->sensorData().laserScanCompressed().isEmpty()) &&
+			 (!pointCloud2 || !s->sensorData().pointCloud2Compressed().isEmpty()) &&
 			 (!userData || !s->sensorData().userDataCompressed().empty()) &&
 			 (!occupancyGrid || s->sensorData().gridCellSize() != 0.0f))))
 		{
@@ -708,6 +726,10 @@ void DBDriver::getNodeData(
 			if(!scan)
 			{
 				data.setLaserScan(LaserScan());
+			}
+			if(!pointCloud2)
+			{
+				data.setPointCloud2(PointCloud2());
 			}
 			if(!userData)
 			{
@@ -728,7 +750,7 @@ void DBDriver::getNodeData(
 		std::list<Signature *> signatures;
 		Signature tmp(signatureId);
 		signatures.push_back(&tmp);
-		loadNodeDataQuery(signatures, images, scan, userData, occupancyGrid);
+		loadNodeDataQuery(signatures, images, scan, pointCloud2, userData, occupancyGrid);
 		data = signatures.front()->sensorData();
 		_dbSafeAccessMutex.unlock();
 	}
@@ -779,6 +801,30 @@ bool DBDriver::getLaserScanInfo(
 	{
 		_dbSafeAccessMutex.lock();
 		found = this->getLaserScanInfoQuery(signatureId, info);
+		_dbSafeAccessMutex.unlock();
+	}
+	return found;
+}
+
+bool DBDriver::getPointCloud2Info(
+		int signatureId,
+		rtabmap::PointCloud2 & info) const
+{
+	UDEBUG("");
+	bool found = false;
+	// look in the trash
+	_trashesMutex.lock();
+	if(uContains(_trashSignatures, signatureId))
+	{
+		info = _trashSignatures.at(signatureId)->sensorData().pointCloud2Compressed();
+		found = true;
+	}
+	_trashesMutex.unlock();
+
+	if(!found)
+	{
+		_dbSafeAccessMutex.lock();
+		found = this->getPointCloud2InfoQuery(signatureId, info);
 		_dbSafeAccessMutex.unlock();
 	}
 	return found;
