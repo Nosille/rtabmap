@@ -3635,7 +3635,8 @@ void DatabaseViewer::updateOptimizedMesh()
 		exportDialog_->forceAssembling(true);
 		exportDialog_->setOkButton();
 
-		std::map<int, pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr> clouds;
+		std::map<int, pcl::PCLPointCloud2::Ptr> cloud2s;
+		std::map<int, pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr> clouds;		
 		std::map<int, pcl::PolygonMesh::Ptr> meshes;
 		std::map<int, pcl::TextureMesh::Ptr> textureMeshes;
 		std::vector<std::map<int, pcl::PointXY> > textureVertexToPixels;
@@ -3645,15 +3646,25 @@ void DatabaseViewer::updateOptimizedMesh()
 				updateLinksWithModifications(links_),
 				mapIds_,
 				QMap<int, Signature>(),
-				std::map<int, std::pair<pcl::PointCloud<pcl::PointXYZRGB>::Ptr, pcl::IndicesPtr> >(),
+				std::map<int, std::pair<pcl::PCLPointCloud2::Ptr, pcl::IndicesPtr> >(),
 				std::map<int, LaserScan>(),
+				std::map<int, PointCloud2>(),
 				pathDatabase_,
 				ui_->parameters_toolbox->getParameters(),
-				clouds,
+				cloud2s,
 				meshes,
 				textureMeshes,
 				textureVertexToPixels))
 		{
+			for(std::map<int, pcl::PCLPointCloud2::Ptr>::const_iterator iter=cloud2s.begin(); iter!=cloud2s.end(); ++iter)
+			{
+				pcl::PCLPointCloud2::Ptr pointCloud2 = iter->second;
+				pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr pointCloud(new pcl::PointCloud<pcl::PointXYZRGBNormal>);
+				pcl::fromPCLPointCloud2(*pointCloud2, *pointCloud);
+				
+				clouds.insert(std::make_pair(iter->first, pointCloud));
+			}
+			
 			if(textureMeshes.size())
 			{
 				dbDriver_->saveOptimizedPoses(optimizedPoses, lastlocalizationPose);
@@ -4144,8 +4155,9 @@ void DatabaseViewer::view3DMap()
 				updateLinksWithModifications(links_),
 				mapIds_,
 				QMap<int, Signature>(),
-				std::map<int, std::pair<pcl::PointCloud<pcl::PointXYZRGB>::Ptr, pcl::IndicesPtr> >(),
+				std::map<int, std::pair<pcl::PCLPointCloud2::Ptr, pcl::IndicesPtr> >(),
 				std::map<int, LaserScan>(),
+				std::map<int, PointCloud2>(),
 				pathDatabase_,
 				ui_->parameters_toolbox->getParameters());
 	}
@@ -4197,8 +4209,9 @@ void DatabaseViewer::generate3DMap()
 				updateLinksWithModifications(links_),
 				mapIds_,
 				QMap<int, Signature>(),
-				std::map<int, std::pair<pcl::PointCloud<pcl::PointXYZRGB>::Ptr, pcl::IndicesPtr> >(),
+				std::map<int, std::pair<pcl::PCLPointCloud2::Ptr, pcl::IndicesPtr> >(),
 				std::map<int, LaserScan>(),
+				std::map<int, PointCloud2>(),
 				pathDatabase_,
 				ui_->parameters_toolbox->getParameters());
 	}

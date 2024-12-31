@@ -300,8 +300,9 @@ protected:
 	const std::multimap<int, Link> & currentLinksMap() const { return _currentLinksMap; }  // <nodeFromId, link>
 	const std::map<int, int> & currentMapIds() const { return _currentMapIds; }    // <nodeId, mapId>
 	const std::map<int, std::string> & currentLabels() const { return _currentLabels; }  // <nodeId, label>
-	const std::map<int, std::pair<pcl::PointCloud<pcl::PointXYZRGB>::Ptr, pcl::IndicesPtr> > & cachedClouds() const { return _cachedClouds; }
+	const std::map<int, std::pair<pcl::PCLPointCloud2::Ptr, pcl::IndicesPtr> > & cachedClouds() const { return _cachedClouds; }
 	const std::map<int, LaserScan> & createdScans() const { return _createdScans; }
+	const std::map<int, PointCloud2> & createdPointCloud2s() const { return _createdPointCloud2s; }
 	const std::map<int, pcl::PointCloud<pcl::PointXYZRGB>::Ptr> & createdFeatures() const { return _createdFeatures; }
 
 	const rtabmap::OccupancyGrid * occupancyGrid() const { return _occupancyGrid; }
@@ -381,7 +382,7 @@ private:
 	std::multimap<int, Link> _currentLinksMap; // <nodeFromId, link>
 	std::map<int, int> _currentMapIds;   // <nodeId, mapId>
 	std::map<int, std::string> _currentLabels; // <nodeId, label>
-	std::map<int, std::pair<pcl::PointCloud<pcl::PointXYZRGB>::Ptr, pcl::IndicesPtr> > _cachedClouds;
+	std::map<int, std::pair<pcl::PCLPointCloud2::Ptr, pcl::IndicesPtr> > _cachedClouds;
 	long _createdCloudsMemoryUsage;
 	std::set<int> _cachedEmptyClouds;
 	std::pair<int, std::pair<std::pair<pcl::PointCloud<pcl::PointXYZRGB>::Ptr, pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr>, pcl::IndicesPtr> > _previousCloud; // used for subtraction
@@ -390,6 +391,7 @@ private:
 	rtabmap::LocalGridCache _cachedLocalMaps;
 
 	std::map<int, LaserScan> _createdScans;
+	std::map<int, PointCloud2> _createdPointCloud2s;
 
 	rtabmap::OccupancyGrid * _occupancyGrid;
 	rtabmap::OctoMap * _octomap;

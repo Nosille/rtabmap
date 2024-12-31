@@ -3956,9 +3956,12 @@ std::pair<pcl::PointCloud<pcl::PointXYZRGB>::Ptr, pcl::IndicesPtr> MainWindow::c
 			{
 				outputPair.first = output;
 				outputPair.second = indices;
+				std::pair<pcl::PCLPointCloud2::Ptr, pcl::IndicesPtr> outputPair2;
+				toPCLPointCloud2(*output, *outputPair2.first);
+				outputPair2.second = indices;
 				if(_preferencesDialog->isCloudsKept() && nodeId > 0)
 				{
-					_cachedClouds.insert(std::make_pair(nodeId, outputPair));
+					_cachedClouds.insert(std::make_pair(nodeId, outputPair2));
 					_createdCloudsMemoryUsage += (long)(output->size() * sizeof(pcl::PointXYZRGB) + indices->size()*sizeof(int));
 				}
 				_cloudViewer->setCloudColorIndex(cloudName, _preferencesDialog->getCloudColorScheme(0));
@@ -3998,7 +4001,8 @@ void MainWindow::createAndAddScanToMap(int nodeId, const Transform & pose, int m
 	if(!iter->sensorData().laserScanCompressed().isEmpty() || !iter->sensorData().laserScanRaw().isEmpty())
 	{
 		LaserScan scan;
-		iter->sensorData().uncompressData(0, 0, &scan);
+		PointCloud2 pointCloud2;
+		iter->sensorData().uncompressData(0, 0, &scan, &pointCloud2);
 
 		if(_preferencesDialog->getDownsamplingStepScan(0) > 1 ||
 			_preferencesDialog->getScanMaxRange(0) > 0.0f ||
@@ -4008,6 +4012,11 @@ void MainWindow::createAndAddScanToMap(int nodeId, const Transform & pose, int m
 					_preferencesDialog->getDownsamplingStepScan(0),
 					_preferencesDialog->getScanMinRange(0),
 					_preferencesDialog->getScanMaxRange(0));
+
+			// pointCloud2 = util3d::commonFiltering(pointCloud2,
+			// 		_preferencesDialog->getDownsamplingStepScan(0),
+			// 		_preferencesDialog->getScanMinRange(0),
+			// 		_preferencesDialog->getScanMaxRange(0));
 		}
 
 		pcl::PointCloud<pcl::PointXYZ>::Ptr cloud;
@@ -4041,6 +4050,10 @@ void MainWindow::createAndAddScanToMap(int nodeId, const Transform & pose, int m
 			cloud = util3d::laserScanToPointCloud(scan, scan.localTransform());
 		}
 
+		// pcl::PCLPointCloud2::Ptr cloud2 = pcl::make_shared<pcl::PCLPointCloud2>(pointCloud2.cloud());
+		// rtabmap::Transform localTransform = pointCloud2.localTransform();
+		// cloud2 = util3d::transformPointCloud(cloud2, localTransform);
+
 		if(_preferencesDialog->getCloudVoxelSizeScan(0) > 0.0)
 		{
 			if(cloud.get())
@@ -4055,6 +4068,10 @@ void MainWindow::createAndAddScanToMap(int nodeId, const Transform & pose, int m
 			{
 				cloudI = util3d::voxelize(cloudI, _preferencesDialog->getCloudVoxelSizeScan(0));
 			}
+			// if(cloud2.get())
+			// {
+			// 	cloud2 = util3d::voxelize(cloud2, _preferencesDialog->getCloudVoxelSizeScan(0));
+			// }
 		}
 
 		// Do ceiling/floor filtering
@@ -4140,6 +4157,19 @@ void MainWindow::createAndAddScanToMap(int nodeId, const Transform & pose, int m
 				//transform back in sensor frame
 				cloud = util3d::transformPointCloud(cloudTransformed, pose.inverse());
 			}
+			// if(cloud2.get())
+			// {
+			// 	// perform in /map frame
+			// 	pcl::PCLPointCloud2::Ptr cloudTransformed = util3d::transformPointCloud(cloud2, pose);
+			// 	cloudTransformed = rtabmap::util3d::passThrough(
+			// 			cloudTransformed,
+			// 			"z",
+			// 			_preferencesDialog->getScanFloorFilteringHeight()==0.0?(float)std::numeric_limits<int>::min():_preferencesDialog->getScanFloorFilteringHeight(),
+			// 			_preferencesDialog->getScanCeilingFilteringHeight()==0.0?(float)std::numeric_limits<int>::max():_preferencesDialog->getScanCeilingFilteringHeight());
+
+			// 	//transform back in sensor frame
+			// 	cloud2 = util3d::transformPointCloud(cloudTransformed, pose.inverse());
+			// }
 		}
 
 		if(	(cloud.get() || cloudRGB.get() || cloudI.get()) &&
@@ -4188,6 +4218,23 @@ void MainWindow::createAndAddScanToMap(int nodeId, const Transform & pose, int m
 				cloudI.reset();
 			}
 		}
+
+		// if(	(cloud2.get()) &&
+		//    (_preferencesDialog->getScanNormalKSearch() > 0 || _preferencesDialog->getScanNormalRadiusSearch() > 0.0))
+		// {
+		// 	Eigen::Vector3f pc2Viewpoint(
+		// 			pointCloud2.localTransform().x(),
+		// 			pointCloud2.localTransform().y(),
+		// 			pointCloud2.localTransform().z());
+
+		// 	pcl::PCLPointCloud2::Ptr normals2;
+		// 	if(cloud2->height*cloud2->width)
+		// 	{
+		// 		normals2 = util3d::computeNormals(cloud2, _preferencesDialog->getScanNormalKSearch(), _preferencesDialog->getScanNormalRadiusSearch(), pc2Viewpoint);
+
+		// 		pcl::concatenateFields(*cloud2, *normals2, *cloud2);
+		// 	}
+		// }
 
 		QColor color = Qt::gray;
 		if(mapId >= 0)
@@ -4281,6 +4328,7 @@ void MainWindow::createAndAddScanToMap(int nodeId, const Transform & pose, int m
 			if(nodeId > 0)
 			{
 				_createdScans.insert(std::make_pair(nodeId, scan)); // keep scan in scan frame
+				_createdPointCloud2s.insert(std::make_pair(nodeId, pointCloud2));
 			}
 
 			_cloudViewer->setCloudColorIndex(scanName, _preferencesDialog->getScanColorScheme(0)==0 && scan.is2d()?2:_preferencesDialog->getScanColorScheme(0));
@@ -7512,6 +7560,7 @@ void MainWindow::clearTheCache()
 	_previousCloud.second.first.second.reset();
 	_previousCloud.second.second.reset();
 	_createdScans.clear();
+	_createdPointCloud2s.clear();
 	_createdFeatures.clear();
 	_cloudViewer->clear();
 	_cloudViewer->setBackgroundColor(_cloudViewer->getDefaultBackgroundColor());
@@ -7971,6 +8020,7 @@ void MainWindow::exportClouds()
 			_cachedSignatures,
 			_cachedClouds,
 			_createdScans,
+			_createdPointCloud2s,
 			_preferencesDialog->getWorkingDirectory(),
 			_preferencesDialog->getAllParameters());
 }
@@ -8008,6 +8058,7 @@ void MainWindow::viewClouds()
 			_cachedSignatures,
 			_cachedClouds,
 			_createdScans,
+			_createdPointCloud2s,
 			_preferencesDialog->getWorkingDirectory(),
 			_preferencesDialog->getAllParameters());
 

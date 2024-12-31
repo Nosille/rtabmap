@@ -189,14 +189,31 @@
           </widget>
          </item>
          <item row="0" column="0">
-          <widget class="QCheckBox" name="checkBox_fromDepth">
+          <!-- <widget class="QCheckBox" name="checkBox_fromDepth">
            <property name="text">
             <string/>
            </property>
            <property name="checked">
             <bool>true</bool>
            </property>
-          </widget>
+          </widget> -->
+          <widget class="QComboBox" name="comboBox_pointCloudSource">
+           <item>
+            <property name="text">
+             <string>From RGB-D Images</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>From LaserScan</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>From PointCloud2</string>
+            </property>
+           </item>
+          </widget>          
          </item>
          <item row="6" column="0">
           <widget class="QSpinBox" name="spinBox_normalKSearch">
