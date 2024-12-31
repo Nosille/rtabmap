@@ -1702,14 +1702,41 @@ bool ExportCloudsDialog::getExportedClouds(
 		std::map<int, std::pair<pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr, pcl::IndicesPtr> > clouds;
 		if(loadClouds)
 		{
-			clouds = this->getClouds(
+			std::map<int, std::pair<pcl::PCLPointCloud2::Ptr, pcl::IndicesPtr> > cachedCloud2s;
+			for(std::map<int, std::pair<pcl::PointCloud<pcl::PointXYZRGB>::Ptr, pcl::IndicesPtr> >::const_iterator iter=cachedClouds.begin(); iter!=cachedClouds.end(); ++iter)
+			{
+				pcl::PointCloud<pcl::PointXYZRGB>::Ptr pointCloud = iter->second.first;
+				pcl::PCLPointCloud2::Ptr pointCloud2(new pcl::PCLPointCloud2);
+
+				pcl::toPCLPointCloud2(*pointCloud, *pointCloud2);
+				
+				cachedCloud2s.insert(std::make_pair(iter->first,
+						std::make_pair(
+								pointCloud2,
+								iter->second.second)));
+			}
+			
+			std::map<int, std::pair<pcl::PCLPointCloud2::Ptr, pcl::IndicesPtr> > cloud2s;
+			cloud2s = this->getClouds(
 					poses,
 					cachedSignatures,
-					cachedClouds,
+					cachedCloud2s,
 					cachedScans,
 					parameters,
 					has2dScans,
 					_scansHaveRGB);
+			
+			for(std::map<int, std::pair<pcl::PCLPointCloud2::Ptr, pcl::IndicesPtr> >::const_iterator iter=cloud2s.begin(); iter!=cloud2s.end(); ++iter)
+			{
+				pcl::PCLPointCloud2::Ptr pointCloud2 = iter->second.first;
+				pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr pointCloud(new pcl::PointCloud<pcl::PointXYZRGBNormal>);
+				pcl::fromPCLPointCloud2(*pointCloud2, *pointCloud);
+				
+				clouds.insert(std::make_pair(iter->first,
+						std::make_pair(
+								pointCloud,
+								iter->second.second)));
+			}
 		}
 		else
 		{
@@ -3994,6 +4021,474 @@ std::map<int, std::pair<pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr, pcl::Indic
 
 				clouds.insert(std::make_pair(iter->first, std::make_pair(cloud, indices)));
 				points = (int)cloud->size();
+				totalIndices = (int)indices->size();
+			}
+		}
+		else
+		{
+			UERROR("transform is null!?");
+		}
+
+		if(points>0)
+		{
+			if(_ui->checkBox_regenerate->isChecked())
+			{
+				_progressDialog->appendText(tr("Generated cloud %1 with %2 points and %3 indices (%4/%5).")
+						.arg(iter->first).arg(points).arg(totalIndices).arg(index).arg(poses.size()));
+			}
+			else
+			{
+				_progressDialog->appendText(tr("Copied cloud %1 from cache with %2 points and %3 indices (%4/%5).")
+						.arg(iter->first).arg(points).arg(totalIndices).arg(index).arg(poses.size()));
+			}
+		}
+		else
+		{
+			_progressDialog->appendText(tr("Ignored cloud %1 (%2/%3).").arg(iter->first).arg(index).arg(poses.size()));
+		}
+		_progressDialog->incrementStep();
+		QApplication::processEvents();
+	}
+
+	return clouds;
+}
+
+std::map<int, std::pair<pcl::PCLPointCloud2::Ptr, pcl::IndicesPtr> > ExportCloudsDialog::getClouds(
+		const std::map<int, Transform> & poses,
+		const QMap<int, Signature> & cachedSignatures,
+		const std::map<int, std::pair<pcl::PCLPointCloud2::Ptr, pcl::IndicesPtr> > & cachedClouds,
+		const std::map<int, LaserScan> & cachedScans,
+		const ParametersMap & parameters,
+		bool & has2dScans,
+		bool & scansHaveRGB) const
+{
+	scansHaveRGB = false;
+	has2dScans = false;
+	std::map<int, std::pair<pcl::PCLPointCloud2::Ptr, pcl::IndicesPtr> > clouds;
+	int index=1;
+	pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr previousDepthCloud;
+	pcl::IndicesPtr previousIndices;
+	Transform previousPose;
+	for(std::map<int, Transform>::const_iterator iter = poses.lower_bound(1); iter!=poses.end() && !_canceled; ++iter, ++index)
+	{
+		int points = 0;
+		int totalIndices = 0;
+		if(!iter->second.isNull())
+		{
+			pcl::PCLPointCloud2::Ptr cloud(new pcl::PCLPointCloud2);
+			pcl::IndicesPtr indices(new std::vector<int>);
+			Transform localTransform = Transform::getIdentity();
+			if(_ui->checkBox_regenerate->isChecked())
+			{
+				SensorData data;
+				rtabmap::LaserScan scan;
+				rtabmap::PointCloud2 pointCloud2;
+				if(cachedSignatures.contains(iter->first))
+				{
+					const Signature & s = cachedSignatures.find(iter->first).value();
+					data = s.sensorData();
+					cv::Mat image,depth;
+					data.uncompressData(
+							_ui->checkBox_fromDepth->isChecked()?&image:0,
+							_ui->checkBox_fromDepth->isChecked()?&depth:0,
+							!_ui->checkBox_fromDepth->isChecked()?&scan:0,
+							!_ui->checkBox_fromDepth->isChecked()?&pointCloud2:0);
+				}
+				else if(_dbDriver)
+				{
+					cv::Mat image,depth;
+					_dbDriver->getNodeData(iter->first, data, _ui->checkBox_fromDepth->isChecked(), !_ui->checkBox_fromDepth->isChecked(), !_ui->checkBox_fromDepth->isChecked(), false);
+					data.uncompressData(
+							_ui->checkBox_fromDepth->isChecked()?&image:0,
+							_ui->checkBox_fromDepth->isChecked()?&depth:0,
+							!_ui->checkBox_fromDepth->isChecked()?&scan:0,
+							!_ui->checkBox_fromDepth->isChecked()?&pointCloud2:0);
+				}
+
+				if(_ui->checkBox_fromDepth->isChecked() && !data.imageRaw().empty() && !data.depthOrRightRaw().empty())
+				{
+					pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr depthCloud(new pcl::PointCloud<pcl::PointXYZRGBNormal>);
+					cv::Mat depth = data.depthRaw();
+					if(!depth.empty() && _ui->spinBox_fillDepthHoles->value() > 0)
+					{
+						depth = util2d::fillDepthHoles(depth, _ui->spinBox_fillDepthHoles->value(), float(_ui->spinBox_fillDepthHolesError->value())/100.f);
+					}
+
+					if(!depth.empty() &&
+					  !_ui->lineEdit_distortionModel->text().isEmpty() &&
+					   QFileInfo(_ui->lineEdit_distortionModel->text()).exists())
+					{
+						clams::DiscreteDepthDistortionModel model;
+						model.load(_ui->lineEdit_distortionModel->text().toStdString());
+						depth = depth.clone();// make sure we are not modifying data in cached signatures.
+						model.undistort(depth);
+					}
+
+					// bilateral filtering
+					if(!depth.empty() && _ui->checkBox_bilateral->isChecked())
+					{
+						depth = util2d::fastBilateralFiltering(depth,
+								_ui->doubleSpinBox_bilateral_sigmaS->value(),
+								_ui->doubleSpinBox_bilateral_sigmaR->value());
+					}
+
+					if(!depth.empty())
+					{
+						data.setRGBDImage(data.imageRaw(), depth, data.cameraModels());
+					}
+
+					UASSERT(iter->first == data.id());
+					pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudWithoutNormals;
+					std::vector<float> roiRatios;
+					if(!_ui->lineEdit_roiRatios->text().isEmpty())
+					{
+						QStringList values = _ui->lineEdit_roiRatios->text().split(' ');
+						if(values.size() == 4)
+						{
+							roiRatios.resize(4);
+							for(int i=0; i<values.size(); ++i)
+							{
+								roiRatios[i] = uStr2Float(values[i].toStdString().c_str());
+							}
+						}
+					}
+					cloudWithoutNormals = util3d::cloudRGBFromSensorData(
+							data,
+							_ui->spinBox_decimation->value() == 0?1:_ui->spinBox_decimation->value(),
+							_ui->doubleSpinBox_maxDepth->value(),
+							_ui->doubleSpinBox_minDepth->value(),
+							indices.get(),
+							parameters,
+							roiRatios);
+
+					if(cloudWithoutNormals->size())
+					{
+						// Don't voxelize if we create organized mesh
+						if(!(_ui->comboBox_pipeline->currentIndex()==0 && _ui->checkBox_meshing->isChecked()) && _ui->doubleSpinBox_voxelSize_assembled->value()>0.0)
+						{
+							cloudWithoutNormals = util3d::voxelize(cloudWithoutNormals, indices, _ui->doubleSpinBox_voxelSize_assembled->value());
+							indices->resize(cloudWithoutNormals->size());
+							for(unsigned int i=0; i<indices->size(); ++i)
+							{
+								indices->at(i) = i;
+							}
+						}
+
+						// view point
+						Eigen::Vector3f viewPoint(0.0f,0.0f,0.0f);
+						if(data.cameraModels().size() && !data.cameraModels()[0].localTransform().isNull())
+						{
+							localTransform = data.cameraModels()[0].localTransform();
+							viewPoint[0] = data.cameraModels()[0].localTransform().x();
+							viewPoint[1] = data.cameraModels()[0].localTransform().y();
+							viewPoint[2] = data.cameraModels()[0].localTransform().z();
+						}
+						else if(data.stereoCameraModels().size() && !data.stereoCameraModels()[0].localTransform().isNull())
+						{
+							localTransform = data.stereoCameraModels()[0].localTransform();
+							viewPoint[0] = data.stereoCameraModels()[0].localTransform().x();
+							viewPoint[1] = data.stereoCameraModels()[0].localTransform().y();
+							viewPoint[2] = data.stereoCameraModels()[0].localTransform().z();
+						}
+
+						if(_ui->spinBox_normalKSearch->value()>0 || _ui->doubleSpinBox_normalRadiusSearch->value()>0.0)
+						{
+							pcl::PointCloud<pcl::Normal>::Ptr normals = util3d::computeNormals(cloudWithoutNormals, indices, _ui->spinBox_normalKSearch->value(), _ui->doubleSpinBox_normalRadiusSearch->value(), viewPoint);
+							pcl::concatenateFields(*cloudWithoutNormals, *normals, *depthCloud);
+							if(_ui->doubleSpinBox_groundNormalsUp->value() > 0.0)
+							{
+								util3d::adjustNormalsToViewPoint(depthCloud, viewPoint, (float)_ui->doubleSpinBox_groundNormalsUp->value());
+							}
+						}
+						else
+						{
+							pcl::copyPointCloud(*cloudWithoutNormals, *depthCloud);
+						}
+
+						if(_ui->checkBox_subtraction->isChecked() &&
+						   _ui->doubleSpinBox_subtractPointFilteringRadius->value() > 0.0)
+						{
+							pcl::IndicesPtr beforeSubtractionIndices = indices;
+							if(	depthCloud->size() &&
+								previousDepthCloud.get() != 0 &&
+								previousIndices.get() != 0 &&
+								previousIndices->size() &&
+								!previousPose.isNull())
+							{
+								rtabmap::Transform t = iter->second.inverse() * previousPose;
+								pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr transformedCloud = rtabmap::util3d::transformPointCloud(previousDepthCloud, t);
+								indices = rtabmap::util3d::subtractFiltering(
+										depthCloud,
+										indices,
+										transformedCloud,
+										previousIndices,
+										_ui->doubleSpinBox_subtractPointFilteringRadius->value(),
+										_ui->doubleSpinBox_subtractPointFilteringAngle->value(),
+										_ui->spinBox_subtractFilteringMinPts->value());
+							}
+							previousDepthCloud = depthCloud;
+							previousIndices = beforeSubtractionIndices;
+							previousPose = iter->second;
+						}
+					}
+					pcl::toPCLPointCloud2(*depthCloud, *cloud);
+				}
+				else if(!_ui->checkBox_fromDepth->isChecked() && !scan.isEmpty())
+				{
+					scan = util3d::commonFiltering(scan,
+							_ui->spinBox_decimation_scan->value(),
+							_ui->doubleSpinBox_rangeMin->value(),
+							_ui->doubleSpinBox_rangeMax->value(),
+							_ui->doubleSpinBox_voxelSize_assembled->value(),
+							_ui->spinBox_normalKSearch->value(),
+							_ui->doubleSpinBox_normalRadiusSearch->value());
+
+					if(!scan.empty())
+					{
+						scansHaveRGB = scan.hasRGB();
+					}
+					localTransform = scan.localTransform();
+					pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr laserCloud;
+					laserCloud = util3d::laserScanToPointCloudRGBNormal(scan, localTransform); // put in base frame by default
+					indices->resize(laserCloud->size());
+					for(unsigned int i=0; i<indices->size(); ++i)
+					{
+						indices->at(i) = i;
+					}
+					pcl::toPCLPointCloud2(*laserCloud, *cloud);
+				}
+				else
+				{
+					int weight = 0;
+					if(cachedSignatures.contains(iter->first))
+					{
+						const Signature & s = cachedSignatures.find(iter->first).value();
+						weight = s.getWeight();
+					}
+					else if(_dbDriver)
+					{
+						_dbDriver->getWeight(iter->first, weight);
+					}
+					if(weight>=0) // don't show error for intermediate nodes
+					{
+						UERROR("Cloud %d not found in cache!", iter->first);
+					}
+				}
+			}
+			else if(_ui->checkBox_fromDepth->isChecked() && uContains(cachedClouds, iter->first))
+			{
+				pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr depthCloud;
+				pcl::PointCloud<pcl::PointXYZRGB>::Ptr cachedDepthCloud;
+				fromPCLPointCloud2(*cachedClouds.at(iter->first).first, *cachedDepthCloud);
+				pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudWithoutNormals;
+				if(!_ui->checkBox_meshing->isChecked() &&
+				   _ui->doubleSpinBox_voxelSize_assembled->value() > 0.0)
+				{
+					cloudWithoutNormals = util3d::voxelize(
+							cachedDepthCloud,
+							cachedClouds.at(iter->first).second,
+							_ui->doubleSpinBox_voxelSize_assembled->value());
+
+					//generate indices for all points (they are all valid)
+					indices->resize(cloudWithoutNormals->size());
+					for(unsigned int i=0; i<cloudWithoutNormals->size(); ++i)
+					{
+						indices->at(i) = i;
+					}
+				}
+				else
+				{
+					cloudWithoutNormals = cachedDepthCloud;
+					indices = cachedClouds.at(iter->first).second;
+				}
+
+				// view point
+				Eigen::Vector3f viewPoint(0.0f,0.0f,0.0f);
+				std::vector<CameraModel> models;
+				std::vector<StereoCameraModel> stereoModels;
+				if(cachedSignatures.contains(iter->first))
+				{
+					const Signature & s = cachedSignatures.find(iter->first).value();
+					models = s.sensorData().cameraModels();
+					stereoModels = s.sensorData().stereoCameraModels();
+				}
+				else if(_dbDriver)
+				{
+					_dbDriver->getCalibration(iter->first, models, stereoModels);
+				}
+
+				if(models.size() && !models[0].localTransform().isNull())
+				{
+					localTransform = models[0].localTransform();
+					viewPoint[0] = models[0].localTransform().x();
+					viewPoint[1] = models[0].localTransform().y();
+					viewPoint[2] = models[0].localTransform().z();
+				}
+				else if(stereoModels.size() && !stereoModels[0].localTransform().isNull())
+				{
+					localTransform = stereoModels[0].localTransform();
+					viewPoint[0] = stereoModels[0].localTransform().x();
+					viewPoint[1] = stereoModels[0].localTransform().y();
+					viewPoint[2] = stereoModels[0].localTransform().z();
+				}
+				else
+				{
+					_progressDialog->appendText(tr("Cached cloud %1 is not found in cached data, the view point for normal computation will not be set (%2/%3).").arg(iter->first).arg(index).arg(poses.size()), Qt::darkYellow);
+				}
+
+				if(_ui->spinBox_normalKSearch->value()>0 || _ui->doubleSpinBox_normalRadiusSearch->value()>0.0)
+				{
+					pcl::PointCloud<pcl::Normal>::Ptr normals = util3d::computeNormals(cloudWithoutNormals, indices, _ui->spinBox_normalKSearch->value(), _ui->doubleSpinBox_normalRadiusSearch->value(), viewPoint);
+					pcl::concatenateFields(*cloudWithoutNormals, *normals, *depthCloud);
+					if(_ui->doubleSpinBox_groundNormalsUp->value() > 0.0)
+					{
+						util3d::adjustNormalsToViewPoint(depthCloud, viewPoint, (float)_ui->doubleSpinBox_groundNormalsUp->value());
+					}
+				}
+				else
+				{
+					pcl::copyPointCloud(*cloudWithoutNormals, *depthCloud);
+				}
+				pcl::toPCLPointCloud2(*depthCloud, *cloud);
+			}
+			else if(!_ui->checkBox_fromDepth->isChecked() && uContains(cachedScans, iter->first))
+			{
+				pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr laserCloud;
+				LaserScan scan = util3d::commonFiltering(cachedScans.at(iter->first),
+							_ui->spinBox_decimation_scan->value(),
+							_ui->doubleSpinBox_rangeMin->value(),
+							_ui->doubleSpinBox_rangeMax->value(),
+							_ui->doubleSpinBox_voxelSize_assembled->value(),
+							_ui->spinBox_normalKSearch->value(),
+							_ui->doubleSpinBox_normalRadiusSearch->value());
+
+				if(!scan.empty())
+				{
+					scansHaveRGB = scan.hasRGB();
+				}
+				localTransform = scan.localTransform();
+				laserCloud = util3d::laserScanToPointCloudRGBNormal(scan, localTransform); // put in base frame by default
+				indices->resize(laserCloud->size());
+				for(unsigned int i=0; i<indices->size(); ++i)
+				{
+					indices->at(i) = i;
+				}
+				pcl::toPCLPointCloud2(*laserCloud, *cloud);
+			}
+			else
+			{
+				int weight = 0;
+				if(cachedSignatures.contains(iter->first))
+				{
+					const Signature & s = cachedSignatures.find(iter->first).value();
+					weight = s.getWeight();
+				}
+				else if(_dbDriver)
+				{
+					_dbDriver->getWeight(iter->first, weight);
+				}
+				if(weight>=0) // don't show error for intermediate nodes
+				{
+					_progressDialog->appendText(tr("Cached cloud %1 not found. You may want to regenerate the clouds (%2/%3).").arg(iter->first).arg(index).arg(poses.size()), Qt::darkYellow);
+				}
+			}
+
+			if(_ui->checkBox_filtering->isChecked())
+			{
+				if(!indices->empty() &&
+				   (_ui->doubleSpinBox_ceilingHeight->value() != 0.0 ||
+					_ui->doubleSpinBox_floorHeight->value() != 0.0))
+				{
+					float min = _ui->doubleSpinBox_floorHeight->value();
+					float max = _ui->doubleSpinBox_ceilingHeight->value();
+					indices = util3d::passThrough(
+							util3d::transformPointCloud(cloud, iter->second),
+							indices,
+							"z",
+							min!=0.0f&&(min<max || max==0.0f)?min:std::numeric_limits<int>::min(),
+							max!=0.0f?max:std::numeric_limits<int>::max());
+				}
+				if(!indices->empty() &&
+				   ( _ui->doubleSpinBox_footprintHeight->value() != 0.0 &&
+					 _ui->doubleSpinBox_footprintWidth->value() != 0.0 &&
+					 _ui->doubleSpinBox_footprintLength->value() != 0.0))
+				{
+					// filter footprint
+					float h = _ui->doubleSpinBox_footprintHeight->value();
+					float w = _ui->doubleSpinBox_footprintWidth->value();
+					float l = _ui->doubleSpinBox_footprintLength->value();
+					indices = util3d::cropBox(
+							cloud,
+							indices,
+							Eigen::Vector4f(
+									-l/2.0f,
+									-w/2.0f,
+									h<0.0f?h:0,
+									1),
+							Eigen::Vector4f(
+									l/2.0f,
+									w/2.0f,
+									h<0.0f?-h:h,
+									1),
+							Transform::getIdentity(),
+							true);
+				}
+
+				if( !indices->empty() &&
+					_ui->doubleSpinBox_filteringRadius->value() > 0.0f &&
+					_ui->spinBox_filteringMinNeighbors->value() > 0)
+				{
+					indices = util3d::radiusFiltering(cloud, indices, _ui->doubleSpinBox_filteringRadius->value(), _ui->spinBox_filteringMinNeighbors->value());
+					if(indices->empty())
+					{
+						UWARN("Point cloud %d doesn't have anymore points (had %d points) after radius filtering.", iter->first, (int)(cloud->height*cloud->width));
+					}
+				}
+				if( !indices->empty() && _ui->groupBox_offAxisFiltering->isChecked() &&
+					(_ui->checkBox_offAxisFilteringPosX->isChecked() ||
+					 _ui->checkBox_offAxisFilteringNegX->isChecked() ||
+					 _ui->checkBox_offAxisFilteringPosY->isChecked() ||
+					 _ui->checkBox_offAxisFilteringNegY->isChecked() ||
+					 _ui->checkBox_offAxisFilteringPosZ->isChecked() ||
+					 _ui->checkBox_offAxisFilteringNegZ->isChecked()))
+				{
+					pcl::PCLPointCloud2::Ptr cloudInMapFrame = util3d::transformPointCloud(cloud, iter->second);
+					std::vector<pcl::IndicesPtr> indicesVector;
+					double maxDeltaAngle = _ui->doubleSpinBox_offAxisFilteringAngle->value()*M_PI/180.0;
+					Eigen::Vector4f viewpoint(iter->second.x(), iter->second.y(), iter->second.z(), 0);
+					if(_ui->checkBox_offAxisFilteringPosX->isChecked())
+						indicesVector.push_back(util3d::normalFiltering(cloudInMapFrame, indices, maxDeltaAngle, Eigen::Vector4f(1,0,0,0), 20, viewpoint));
+					if(_ui->checkBox_offAxisFilteringPosY->isChecked())
+						indicesVector.push_back(util3d::normalFiltering(cloudInMapFrame, indices, maxDeltaAngle, Eigen::Vector4f(0,1,0,0), 20, viewpoint));
+					if(_ui->checkBox_offAxisFilteringPosZ->isChecked())
+						indicesVector.push_back(util3d::normalFiltering(cloudInMapFrame, indices, maxDeltaAngle, Eigen::Vector4f(0,0,1,0), 20, viewpoint));
+					if(_ui->checkBox_offAxisFilteringNegX->isChecked())
+						indicesVector.push_back(util3d::normalFiltering(cloudInMapFrame, indices, maxDeltaAngle, Eigen::Vector4f(-1,0,0,0), 20, viewpoint));
+					if(_ui->checkBox_offAxisFilteringNegY->isChecked())
+						indicesVector.push_back(util3d::normalFiltering(cloudInMapFrame, indices, maxDeltaAngle, Eigen::Vector4f(0,-1,0,0), 20, viewpoint));
+					if(_ui->checkBox_offAxisFilteringNegZ->isChecked())
+						indicesVector.push_back(util3d::normalFiltering(cloudInMapFrame, indices, maxDeltaAngle, Eigen::Vector4f(0,0,-1,0), 20, viewpoint));
+					indices = util3d::concatenate(indicesVector);
+					if(indices->empty())
+					{
+						UWARN("Point cloud %d doesn't have anymore points (had %d points) after offaxis filtering.", iter->first, (int)(cloud->height*cloud->width));
+					}
+				}
+			}
+
+			if(!indices->empty())
+			{
+				if((_ui->comboBox_frame->isEnabled() && _ui->comboBox_frame->currentIndex()==2) && !cloud->is_dense)
+				{
+					cloud = util3d::transformPointCloud(cloud, localTransform.inverse()); // put back in camera frame
+				}
+				else if(_ui->comboBox_frame->isEnabled() && _ui->comboBox_frame->currentIndex()==3)
+				{
+					cloud = util3d::transformPointCloud(cloud, localTransform.inverse()); // put back in scan frame
+				}
+
+				clouds.insert(std::make_pair(iter->first, std::make_pair(cloud, indices)));
+				points = (int)(cloud->width*cloud->height);
 				totalIndices = (int)indices->size();
 			}
 		}

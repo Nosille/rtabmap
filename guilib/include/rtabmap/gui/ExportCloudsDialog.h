@@ -141,6 +141,14 @@ private:
 			const ParametersMap & parameters,
 			bool & has2dScans,
 			bool & scansHaveRGB) const;
+	std::map<int, std::pair<pcl::PCLPointCloud2::Ptr, pcl::IndicesPtr> > getClouds(
+			const std::map<int, Transform> & poses,
+			const QMap<int, Signature> & cachedSignatures,
+			const std::map<int, std::pair<pcl::PCLPointCloud2::Ptr, pcl::IndicesPtr> > & cachedClouds,
+			const std::map<int, LaserScan> & cachedScans,
+			const ParametersMap & parameters,
+			bool & has2dScans,
+			bool & scansHaveRGB) const;			
 	void saveClouds(const QString & workingDirectory, const std::map<int, Transform> & poses, const std::map<int, pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr> & clouds, bool binaryMode = true, const std::vector<std::map<int, pcl::PointXY> > & pointToPixels = std::vector<std::map<int, pcl::PointXY> >());
 	void saveClouds(const QString & workingDirectory, const std::map<int, Transform> & poses, const std::map<int, pcl::PCLPointCloud2::Ptr> & clouds, bool binaryMode = true, const std::vector<std::map<int, pcl::PointXY> > & pointToPixels = std::vector<std::map<int, pcl::PointXY> >());
 	void saveMeshes(const QString & workingDirectory, const std::map<int, Transform> & poses, const std::map<int, pcl::PolygonMesh::Ptr> & meshes, bool binaryMode = true);
