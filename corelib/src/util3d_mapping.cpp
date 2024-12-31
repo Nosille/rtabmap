@@ -1022,6 +1022,68 @@ cv::Mat erodeMap(const cv::Mat & map)
 	return erodedMap;
 }
 
+void segmentObstaclesFromGround(
+		const typename pcl::PCLPointCloud2::Ptr & cloud,
+		const typename pcl::IndicesPtr & indices,
+		pcl::IndicesPtr & ground,
+		pcl::IndicesPtr & obstacles,
+		int normalKSearch,
+		float groundNormalAngle,
+		float clusterRadius,
+		int minClusterSize,
+		bool segmentFlatObstacles,
+		float maxGroundHeight,
+		pcl::IndicesPtr * flatObstacles,
+		const Eigen::Vector4f & viewPoint,
+		float groundNormalsUp)
+{
+	// compute normals for the mesh if not already here
+	bool hasGround = false;
+	pcl::PCLPointField groundField;
+	for(unsigned int i=0; i<cloud->fields.size(); ++i)
+	{
+		if(cloud->fields[i].name.compare("is_ground") == 0)
+		{
+			hasGround = true;
+			groundField = cloud->fields[i];
+			break;
+		}
+	}
+
+	if(hasGround && (groundField.datatype == pcl::PCLPointField::PointFieldTypes::UINT8))
+	{
+		ground.reset(new std::vector<int>);
+		obstacles.reset(new std::vector<int>);
+		if(flatObstacles)
+		{
+			flatObstacles->reset(new std::vector<int>);
+		}
+		
+		uint8_t isGround = 0;
+		for(uint32_t i=0; i < cloud->height; i++)
+		{
+			for(uint32_t j=0; j < cloud->width; j++)
+			{
+				uint32_t cloudIndex = i*cloud->width + j;
+				uint32_t arrayIndex = i * cloud->row_step + j * cloud->point_step + groundField.offset;
+				std::memcpy(&cloud->data[arrayIndex], &isGround, sizeof(uint8_t));
+				if(isGround)
+					ground->push_back(cloudIndex);
+				else
+					obstacles->push_back(cloudIndex);				
+			}
+		}
+	}
+	else
+	{
+		pcl::PointCloud<pcl::PointXYZ>::Ptr xyz(new pcl::PointCloud<pcl::PointXYZ>);
+		fromPCLPointCloud2(*cloud, *xyz);
+
+		util3d::segmentObstaclesFromGround<pcl::PointXYZ>(xyz, indices, ground, obstacles, normalKSearch, groundNormalAngle, clusterRadius, minClusterSize,
+			segmentFlatObstacles, maxGroundHeight, flatObstacles, viewPoint, groundNormalsUp);
+	}
+}
+
 }
 
 }
