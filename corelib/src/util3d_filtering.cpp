@@ -331,6 +331,106 @@ LaserScan commonFiltering(
 	return scan;
 }
 
+PointCloud2 commonFiltering(
+		const PointCloud2 & pointCloud2In,
+		int downsamplingStep,
+		float rangeMin,
+		float rangeMax,
+		float voxelSize,
+		int normalK,
+		float normalRadius,
+		float groundNormalsUp)
+{
+	UDEBUG("cloud size=%d organized=%d, step=%d, rangeMin=%f, rangeMax=%f, voxel=%f, normalK=%d, normalRadius=%f, groundNormalsUp=%f",
+			pointCloud2In.size(), pointCloud2In.isOrganized()?1:0, downsamplingStep, rangeMin, rangeMax, voxelSize, normalK, normalRadius, groundNormalsUp);
+	
+	PointCloud2 pointCloud2Out = pointCloud2In;
+
+	if(!pointCloud2In.isEmpty())
+	{
+		pcl::IndicesPtr indices(new std::vector<int>);
+		pcl::PCLPointCloud2::Ptr input = pcl::make_shared<pcl::PCLPointCloud2>(pointCloud2In.cloud());	
+		pcl::PCLPointCloud2::Ptr output(new pcl::PCLPointCloud2);
+
+		pcl::PointCloud<pcl::PointXYZ>::Ptr xyz(new pcl::PointCloud<pcl::PointXYZ>);	
+		output = util3d::removeNaNFromPointCloud(input);
+		fromPCLPointCloud2(*output, *xyz);
+
+		// combined downsampling and range filtering step
+		if(downsamplingStep <= 1 || (int)xyz->size() <= downsamplingStep)
+		{
+			downsamplingStep = 1;
+		}
+		
+		if(downsamplingStep > 1 || rangeMin > 0.0f || rangeMax > 0.0f)
+		{
+			float rangeMinSqrd = rangeMin * rangeMin;
+			float rangeMaxSqrd = rangeMax * rangeMax;
+
+			for(unsigned int j=0; j<output->height/downsamplingStep; ++j)
+			{
+				for(unsigned int i=0; i<output->width/downsamplingStep; ++i)
+				{
+					pcl::PointXYZ pt = xyz->at(j*output->width + i);
+					float r = pt.x*pt.x + pt.y*pt.y + pt.z*pt.z;
+
+					if(!uIsFinite(r))
+					{
+						continue;
+					}
+
+					if((rangeMin <= 0.0f || r > rangeMinSqrd) && (rangeMax <= 0.0f || r < rangeMaxSqrd))
+					{
+						indices->push_back(j*output->width/downsamplingStep*downsamplingStep + i*downsamplingStep);
+					}
+				}
+			}
+		}
+
+		if(indices->size() && voxelSize > 0.0f)
+		{
+			output = voxelize(output, indices, voxelSize);
+		}
+		else
+		{
+			// Create the filtering object
+			pcl::ExtractIndices<pcl::PCLPointCloud2> extract;
+			// Extract the inliers
+			extract.setInputCloud(output);
+			extract.setIndices(indices);
+			extract.setNegative(false);
+			extract.filter(*output);
+		}
+
+		if(!pointCloud2In.hasNormals() && (normalK > 0 || normalRadius>0.0f))
+		{
+			if((output->height * output->width > 1) && (normalK > 0 || normalRadius>0.0f))
+			{
+				pcl::PCLPointCloud2::Ptr outputWithNormals(new pcl::PCLPointCloud2);
+				
+				std::vector<pcl::PCLPointField> newFields;
+				pcl::PCLPointField fieldX, fieldY, fieldZ;
+				fieldX.name = "normal_x"; fieldX.datatype = 7; fieldX.count = 1; newFields.push_back(fieldX);
+				fieldY.name = "normal_y"; fieldY.datatype = 7; fieldY.count = 1; newFields.push_back(fieldY);
+				fieldZ.name = "normal_z"; fieldZ.datatype = 7; fieldZ.count = 1; newFields.push_back(fieldZ);
+
+				PointCloud2::appendPointCloud2Fields(output, outputWithNormals, newFields, true);
+				
+				pcl::PCLPointCloud2::Ptr normals = util3d::computeNormals(output, normalK, normalRadius);
+				pcl::concatenateFields(*outputWithNormals, *normals, *output);
+			}
+		}
+
+		pointCloud2Out = PointCloud2(*output, pointCloud2In.localTransform());		
+
+		if(pointCloud2Out.size() && pointCloud2Out.hasNormals() && groundNormalsUp>0.0f)
+		{
+			pointCloud2Out = util3d::adjustNormalsToViewPoint(pointCloud2Out, Eigen::Vector3f(0,0,10), groundNormalsUp);
+		}
+	}
+	return pointCloud2Out;
+}
+
 LaserScan commonFiltering(
 		const LaserScan & scanIn,
 		int downsamplingStep,
@@ -978,17 +1078,24 @@ pcl::PCLPointCloud2::Ptr voxelize(
 		}
 		else
 		{
-			pcl::VoxelGrid<pcl::PCLPointCloud2> filter;
-			filter.setLeafSize(voxelSize, voxelSize, voxelSize);
-			filter.setInputCloud(cloud);
-#ifdef WIN32
-			// Pre-allocating the cloud helps to avoid crash when freeing memory allocated inside pcl library
-			output->resize(cloud->size());
-#endif
+			pcl::PCLPointCloud2::Ptr filtered(new pcl::PCLPointCloud2);
 			if(!indices->empty())
 			{
-				filter.setIndices(indices);
+				pcl::ExtractIndices<pcl::PCLPointCloud2> extract;
+				extract.setInputCloud (cloud);
+				extract.setIndices(indices);
+				extract.setNegative(false);
+				extract.setKeepOrganized(false);
+				extract.filter(*filtered);
 			}
+			else
+			{
+				filtered = cloud;
+			}
+						
+			pcl::VoxelGrid<pcl::PCLPointCloud2> filter;
+			filter.setLeafSize(voxelSize, voxelSize, voxelSize);
+			filter.setInputCloud(filtered);
 			filter.filter(*output);
 		}
 	}
@@ -2494,7 +2601,7 @@ pcl::IndicesPtr normalFilteringImpl(
 		for(unsigned int i=0; i<cloud_normals->size(); ++i)
 		{
 			Eigen::Vector4f v(cloud_normals->at(i).normal_x, cloud_normals->at(i).normal_y, cloud_normals->at(i).normal_z, 0.0f);
-			if(groundNormalsUp>0.0f && v[2] < -groundNormalsUp && cloud->at(indices->size()!=0?indices->at(i):i).z < viewpoint[3]) // some far velodyne rays on road can have normals toward ground
+			if(groundNormalsUp>0.0f && v[2] < -groundNormalsUp && cloud->at(indices->size()!=0?indices->at(i):i).z < viewpoint[2]) // some far velodyne rays on road can have normals toward ground
 			{
 				//reverse normal
 				v *= -1.0f;
@@ -2565,7 +2672,7 @@ pcl::IndicesPtr normalFilteringImpl(
 			for(unsigned int i=0; i<indices->size(); ++i)
 			{
 				Eigen::Vector4f v(cloud->at(indices->at(i)).normal_x, cloud->at(indices->at(i)).normal_y, cloud->at(indices->at(i)).normal_z, 0.0f);
-				if(groundNormalsUp>0.0f && v[2] < -groundNormalsUp && cloud->at(indices->at(i)).z < viewpoint[3]) // some far velodyne rays on road can have normals toward ground
+				if(groundNormalsUp>0.0f && v[2] < -groundNormalsUp && cloud->at(indices->at(i)).z < viewpoint[2]) // some far velodyne rays on road can have normals toward ground
 				{
 					//reverse normal
 					v *= -1.0f;
@@ -2583,7 +2690,7 @@ pcl::IndicesPtr normalFilteringImpl(
 			for(unsigned int i=0; i<cloud->size(); ++i)
 			{
 				Eigen::Vector4f v(cloud->at(i).normal_x, cloud->at(i).normal_y, cloud->at(i).normal_z, 0.0f);
-				if(groundNormalsUp>0.0f && v[2] < -groundNormalsUp && cloud->at(i).z < viewpoint[3]) // some far velodyne rays on road can have normals toward ground
+				if(groundNormalsUp>0.0f && v[2] < -groundNormalsUp && cloud->at(i).z < viewpoint[2]) // some far velodyne rays on road can have normals toward ground
 				{
 					//reverse normal
 					v *= -1.0f;

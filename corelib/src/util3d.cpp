@@ -3444,19 +3444,10 @@ std::vector<std::pair< std::pair<int, int>, pcl::PointXY> > projectCloudToCamera
 		bool distanceToCamPolicy,
 		const ProgressState * state)
 {
-	// Check for 'rgb'
-	bool has_rgb = false;
-
-	for (const auto &field : cloud.fields)
-		if (field.name == "rgb" || field.name == "rgba")
-			has_rgb = true;
-
-	if (has_rgb)
-	{
-	    pcl::PointCloud<pcl::PointXYZRGBNormal> cloud_pcl;
-		pcl::fromPCLPointCloud2(cloud, cloud_pcl);
-
-		return projectCloudToCameras(cloud_pcl,
+	pcl::PointCloud<pcl::PointXYZINormal> xyz;	
+	fromPCLPointCloud2(cloud, xyz);
+	
+	return projectCloudToCamerasImpl(xyz,
 			cameraPoses,
 			cameraModels,
 			maxDistance,
@@ -3464,23 +3455,7 @@ std::vector<std::pair< std::pair<int, int>, pcl::PointXY> > projectCloudToCamera
 			roiRatios,
 			projMask,
 			distanceToCamPolicy,
-			state);		
-	}
-	else
-	{
-		pcl::PointCloud<pcl::PointXYZINormal> cloud_pcl;
-		pcl::fromPCLPointCloud2(cloud, cloud_pcl);	
-
-		return projectCloudToCameras(cloud_pcl,
-			cameraPoses,
-			cameraModels,
-			maxDistance,
-			maxAngle,
-			roiRatios,
-			projMask,
-			distanceToCamPolicy,
-			state);		
-	}
+			state);
 }
 
 bool isFinite(const cv::Point3f & pt)

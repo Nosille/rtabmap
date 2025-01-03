@@ -104,8 +104,8 @@ ExportCloudsDialog::ExportCloudsDialog(QWidget *parent) :
 	restoreDefaults();
 	_ui->comboBox_upsamplingMethod->setItemData(1, 0, Qt::UserRole - 1); // disable DISTINCT_CLOUD
 
-	connect(_ui->comboBox_pointCloudSource, SIGNAL(stateChanged(int)), this, SIGNAL(configChanged()));
-	connect(_ui->comboBox_pointCloudSource, SIGNAL(stateChanged(int)), this, SLOT(updateReconstructionFlavor()));
+	connect(_ui->comboBox_pointCloudSource, SIGNAL(currentIndexChanged(int)), this, SIGNAL(configChanged()));
+	connect(_ui->comboBox_pointCloudSource, SIGNAL(currentIndexChanged(int)), this, SLOT(updateReconstructionFlavor()));
 	connect(_ui->checkBox_binary, SIGNAL(stateChanged(int)), this, SIGNAL(configChanged()));
 	connect(_ui->spinBox_normalKSearch, SIGNAL(valueChanged(int)), this, SIGNAL(configChanged()));
 	connect(_ui->doubleSpinBox_normalRadiusSearch, SIGNAL(valueChanged(double)), this, SIGNAL(configChanged()));
@@ -928,23 +928,23 @@ void ExportCloudsDialog::saveSettings()
 
 void ExportCloudsDialog::updateReconstructionFlavor()
 {
-	if(!(_ui->comboBox_pointCloudSource->currentIndex() == 0))
+	if(_ui->comboBox_pointCloudSource->currentIndex() == 0)
 	{
-		_ui->comboBox_pipeline->setCurrentIndex(1);
-		_ui->comboBox_pipeline->setEnabled(false);
-		_ui->comboBox_frame->setItemData(2, 0,Qt::UserRole - 1);
-		_ui->comboBox_frame->setItemData(3, 1|32,Qt::UserRole - 1);
-		if(_ui->comboBox_frame->currentIndex() == 2)
+		_ui->comboBox_pipeline->setEnabled(true);
+		_ui->comboBox_frame->setItemData(2, 1|32,Qt::UserRole - 1);
+		_ui->comboBox_frame->setItemData(3, 0,Qt::UserRole - 1);
+		if(_ui->comboBox_frame->currentIndex() == 3)
 		{
 			_ui->comboBox_frame->setCurrentIndex(0);
 		}
 	}
 	else
 	{
-		_ui->comboBox_pipeline->setEnabled(true);
-		_ui->comboBox_frame->setItemData(2, 1|32,Qt::UserRole - 1);
-		_ui->comboBox_frame->setItemData(3, 0,Qt::UserRole - 1);
-		if(_ui->comboBox_frame->currentIndex() == 3)
+		_ui->comboBox_pipeline->setCurrentIndex(1);
+		_ui->comboBox_pipeline->setEnabled(false);
+		_ui->comboBox_frame->setItemData(2, 0,Qt::UserRole - 1);
+		_ui->comboBox_frame->setItemData(3, 1|32,Qt::UserRole - 1);
+		if(_ui->comboBox_frame->currentIndex() == 2)
 		{
 			_ui->comboBox_frame->setCurrentIndex(0);
 		}
@@ -1660,7 +1660,7 @@ bool ExportCloudsDialog::getExportedClouds(
 		const std::map<int, PointCloud2> & cachedPointCloud2s,		
 		const QString & workingDirectory,
 		const ParametersMap & parameters,
-		std::map<int, pcl::PCLPointCloud2::Ptr> & clouds_out,
+		std::map<int, pcl::PCLPointCloud2::Ptr> & cloud2s_out,
 		std::map<int, pcl::PolygonMesh::Ptr> & meshes,
 		std::map<int, pcl::TextureMesh::Ptr> & textureMeshes,
 		std::vector<std::map<int, pcl::PointXY> > & textureVertexToPixels)
@@ -1681,6 +1681,7 @@ bool ExportCloudsDialog::getExportedClouds(
 	if(this->exec() == QDialog::Accepted)
 	{
 		std::map<int, Transform> poses = filterNodes(posesIn);
+		std::map<int, pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr> clouds_mesh;		
 
 		if(poses.empty())
 		{
@@ -2005,35 +2006,40 @@ bool ExportCloudsDialog::getExportedClouds(
 				indices->at(i) = i;
 			}
 
-			if((_ui->comboBox_pointCloudSource->currentIndex() == 1) && !has2dScans &&
+			if((((_ui->comboBox_pointCloudSource->currentIndex() == 1) && !has2dScans) || 
+				  _ui->comboBox_pointCloudSource->currentIndex() == 2) &&
 					(_ui->spinBox_normalKSearch->value()>0 || _ui->doubleSpinBox_normalRadiusSearch->value()>0.0))
 			{
+				// recompute normals
 				_progressDialog->appendText(tr("Computing normals (%1 points, K=%2, radius=%3 m)...")
 										.arg((assembledCloud->height*assembledCloud->width))
 										.arg(_ui->spinBox_normalKSearch->value())
 										.arg(_ui->doubleSpinBox_normalRadiusSearch->value()));
 
-				// // recompute normals
-				// pcl::PointCloud<pcl::PointXYZ>::Ptr cloudWithoutNormals(new pcl::PointCloud<pcl::PointXYZ>);
-				// pcl::copyPointCloud(*assembledCloud, *cloudWithoutNormals);
-				// pcl::PointCloud<pcl::Normal>::Ptr normals = util3d::computeNormals(cloudWithoutNormals, indices, _ui->spinBox_normalKSearch->value(), _ui->doubleSpinBox_normalRadiusSearch->value());
+				// Add normal fields to a copy of the initial cloud
+				pcl::PCLPointCloud2::Ptr cloudWithoutNormals(new pcl::PCLPointCloud2);
+				std::vector<pcl::PCLPointField> newFields;
+				pcl::PCLPointField fieldX, fieldY, fieldZ;
+				uint8_t datatypeFloat = pcl::PCLPointField::FLOAT32;
+				fieldX.name = "normal_x"; fieldX.datatype = datatypeFloat; fieldX.count = 1; newFields.push_back(fieldX);
+				fieldY.name = "normal_y"; fieldY.datatype = datatypeFloat; fieldY.count = 1; newFields.push_back(fieldY);
+				fieldZ.name = "normal_z"; fieldZ.datatype = datatypeFloat; fieldZ.count = 1; newFields.push_back(fieldZ);
+				PointCloud2::appendPointCloud2Fields(assembledCloud, cloudWithoutNormals, newFields, true);
 
-				// UASSERT((assembledCloud->height*assembledCloud->width) == normals->size());
-				// for(unsigned int i=0; i<normals->size(); ++i)
-				// {
-				// 	assembledCloud->points[i].normal_x = normals->points[i].normal_x;
-				// 	assembledCloud->points[i].normal_y = normals->points[i].normal_y;
-				// 	assembledCloud->points[i].normal_z = normals->points[i].normal_z;
-				// }
-				// _progressDialog->appendText(tr("Adjusting normals to viewpoints (%1 points)...").arg((assembledCloud->height*assembledCloud->width)));
+				// Calculate normals then concatenate the normals cloud with the copy
+				pcl::PCLPointCloud2::Ptr normals = util3d::computeNormals(cloudWithoutNormals, indices, _ui->spinBox_normalKSearch->value(), _ui->doubleSpinBox_normalRadiusSearch->value());
+				UASSERT((assembledCloud->height) == normals->height);
+				UASSERT((assembledCloud->width) == normals->width);
+				pcl::concatenateFields(*cloudWithoutNormals, *normals, *assembledCloud);
 
-				// // adjust with point of views
-				// util3d::adjustNormalsToViewPoints(
-				// 							normalViewpoints,
-				// 							rawAssembledCloud,
-				// 							rawCameraIndices,
-				// 							assembledCloud,
-				// 							_ui->doubleSpinBox_groundNormalsUp->value());
+				// adjust normal direction with ViewPoints				
+				_progressDialog->appendText(tr("Adjusting normals to viewpoints (%1 points)...").arg((assembledCloud->height*assembledCloud->width)));
+				util3d::adjustNormalsToViewPoints(
+											normalViewpoints,
+											rawAssembledCloud,
+											rawCameraIndices,
+											assembledCloud,
+											_ui->doubleSpinBox_groundNormalsUp->value());
 			}
 
 			if(_ui->spinBox_randomSamples_assembled->value()>0 &&
@@ -2139,7 +2145,10 @@ bool ExportCloudsDialog::getExportedClouds(
 				cloudWithNormals = util3d::extractIndices(iter->second.first, iter->second.second, false, true);
 			}
 
-			clouds_out.insert(std::make_pair(iter->first, cloudWithNormals));
+			cloud2s_out.insert(std::make_pair(iter->first, cloudWithNormals));
+			pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr cloud_mesh(new pcl::PointCloud<pcl::PointXYZRGBNormal>);
+			pcl::fromPCLPointCloud2(*cloudWithNormals, *cloud_mesh);
+			clouds_mesh.insert(std::make_pair(iter->first, cloud_mesh));			
 
 			// clear memory
 			cloud2s.erase(iter++);
@@ -2151,6 +2160,7 @@ bool ExportCloudsDialog::getExportedClouds(
 				return false;
 			}
 		}
+
 
 		UDEBUG("");
 #ifdef RTABMAP_CPUTSDF
@@ -2179,582 +2189,582 @@ bool ExportCloudsDialog::getExportedClouds(
 				uSleep(100);
 				QApplication::processEvents();
 
-// 				pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr mergedClouds(new pcl::PointCloud<pcl::PointXYZRGBNormal>);
-// 				std::vector<pcl::Vertices> mergedPolygons;
+				pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr mergedClouds(new pcl::PointCloud<pcl::PointXYZRGBNormal>);
+				std::vector<pcl::Vertices> mergedPolygons;
 
-// 				int cloudsAdded = 1;
-// 				for(std::map<int, pcl::PCLPointCloud2::Ptr >::iterator iter=clouds_out.begin();
-// 					iter!= clouds_out.end();
-// 					++iter,++cloudsAdded)
-// 				{
-// 					std::vector<CameraModel> models;
-// 					StereoCameraModel stereoModel;
-// 					bool cacheHasCompressedImage = false;
-// 					LaserScan scanInfo;
-// 					if(cachedSignatures.contains(iter->first))
-// 					{
-// 						const SensorData & data = cachedSignatures.find(iter->first)->sensorData();
-// 						models = data.cameraModels();
-// 						cacheHasCompressedImage = !data.imageCompressed().empty();
-// 						scanInfo = !data.laserScanRaw().isEmpty()?data.laserScanRaw():data.laserScanCompressed();
-// 					}
-// 					else if(_dbDriver)
-// 					{
-// 						_dbDriver->getCalibration(iter->first, models, stereoModel);
-// 						_dbDriver->getLaserScanInfo(iter->first, scanInfo);
-// 					}
+				int cloudsAdded = 1;
+				for(std::map<int, pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr >::iterator iter=clouds_mesh.begin();
+					iter!= clouds_mesh.end();
+					++iter,++cloudsAdded)
+				{
+					std::vector<CameraModel> models;
+					StereoCameraModel stereoModel;
+					bool cacheHasCompressedImage = false;
+					LaserScan scanInfo;
+					if(cachedSignatures.contains(iter->first))
+					{
+						const SensorData & data = cachedSignatures.find(iter->first)->sensorData();
+						models = data.cameraModels();
+						cacheHasCompressedImage = !data.imageCompressed().empty();
+						scanInfo = !data.laserScanRaw().isEmpty()?data.laserScanRaw():data.laserScanCompressed();
+					}
+					else if(_dbDriver)
+					{
+						_dbDriver->getCalibration(iter->first, models, stereoModel);
+						_dbDriver->getLaserScanInfo(iter->first, scanInfo);
+					}
 
-// 					if(chiselMap.get() == 0)
-// 					{
-// 						UDEBUG("");
-// 						int chunkSizeX = _ui->spinBox_openchisel_chunk_size_x->value();
-// 						int chunkSizeY = _ui->spinBox_openchisel_chunk_size_y->value();
-// 						int chunkSizeZ = _ui->spinBox_openchisel_chunk_size_z->value();
-// 						float voxelResolution = _ui->doubleSpinBox_voxelSize_assembled->value();
-// 						if(voxelResolution <=0.0f)
-// 						{
-// 							_progressDialog->appendText(tr("OpenChisel: Voxel size should not be null!"), Qt::darkYellow);
-// 							_progressDialog->setAutoClose(false);
-// 							break;
-// 						}
-// 						bool useColor = (_ui->comboBox_pointCloudSource->currentIndex() == 0);
-// 						chiselMap.reset(new chisel::Chisel(Eigen::Vector3i(chunkSizeX, chunkSizeY, chunkSizeZ), voxelResolution, useColor));
-// 						double truncationDistConst = _ui->doubleSpinBox_openchisel_truncation_constant->value();
-// 						double truncationDistLinear = _ui->doubleSpinBox_openchisel_truncation_linear->value();
-// 						double truncationDistQuad = _ui->doubleSpinBox_openchisel_truncation_quadratic->value();
-// 						double truncationDistScale = _ui->doubleSpinBox_openchisel_truncation_scale->value();
-// 						int weight = _ui->spinBox_openchisel_integration_weight->value();
-// 						bool useCarving = _ui->checkBox_openchisel_use_voxel_carving->isChecked();
-// 						double carvingDist = _ui->doubleSpinBox_openchisel_carving_dist_m->value();
-// 						chisel::Vec4 truncation(truncationDistQuad, truncationDistLinear, truncationDistConst, truncationDistScale);
-// 						UDEBUG("If crashing just after this message, make sure PCL and OpenChisel are built both with -march=native or both without -march=native");
-// 						projectionIntegrator.SetCentroids(chiselMap->GetChunkManager().GetCentroids());
-// 						projectionIntegrator.SetTruncator(chisel::TruncatorPtr(new chisel::QuadraticTruncator(truncation(0), truncation(1), truncation(2), truncation(3))));
-// 						projectionIntegrator.SetWeighter(chisel::WeighterPtr(new chisel::ConstantWeighter(weight)));
-// 						projectionIntegrator.SetCarvingDist(carvingDist);
-// 						projectionIntegrator.SetCarvingEnabled(useCarving);
-// 					}
+					if(chiselMap.get() == 0)
+					{
+						UDEBUG("");
+						int chunkSizeX = _ui->spinBox_openchisel_chunk_size_x->value();
+						int chunkSizeY = _ui->spinBox_openchisel_chunk_size_y->value();
+						int chunkSizeZ = _ui->spinBox_openchisel_chunk_size_z->value();
+						float voxelResolution = _ui->doubleSpinBox_voxelSize_assembled->value();
+						if(voxelResolution <=0.0f)
+						{
+							_progressDialog->appendText(tr("OpenChisel: Voxel size should not be null!"), Qt::darkYellow);
+							_progressDialog->setAutoClose(false);
+							break;
+						}
+						bool useColor = (_ui->comboBox_pointCloudSource->currentIndex() == 0);
+						chiselMap.reset(new chisel::Chisel(Eigen::Vector3i(chunkSizeX, chunkSizeY, chunkSizeZ), voxelResolution, useColor));
+						double truncationDistConst = _ui->doubleSpinBox_openchisel_truncation_constant->value();
+						double truncationDistLinear = _ui->doubleSpinBox_openchisel_truncation_linear->value();
+						double truncationDistQuad = _ui->doubleSpinBox_openchisel_truncation_quadratic->value();
+						double truncationDistScale = _ui->doubleSpinBox_openchisel_truncation_scale->value();
+						int weight = _ui->spinBox_openchisel_integration_weight->value();
+						bool useCarving = _ui->checkBox_openchisel_use_voxel_carving->isChecked();
+						double carvingDist = _ui->doubleSpinBox_openchisel_carving_dist_m->value();
+						chisel::Vec4 truncation(truncationDistQuad, truncationDistLinear, truncationDistConst, truncationDistScale);
+						UDEBUG("If crashing just after this message, make sure PCL and OpenChisel are built both with -march=native or both without -march=native");
+						projectionIntegrator.SetCentroids(chiselMap->GetChunkManager().GetCentroids());
+						projectionIntegrator.SetTruncator(chisel::TruncatorPtr(new chisel::QuadraticTruncator(truncation(0), truncation(1), truncation(2), truncation(3))));
+						projectionIntegrator.SetWeighter(chisel::WeighterPtr(new chisel::ConstantWeighter(weight)));
+						projectionIntegrator.SetCarvingDist(carvingDist);
+						projectionIntegrator.SetCarvingEnabled(useCarving);
+					}
 
-// 					UDEBUG("");
-// 					double nearPlaneDist = _ui->doubleSpinBox_openchisel_near_plane_dist->value();
-// 					double farPlaneDist = _ui->doubleSpinBox_openchisel_far_plane_dist->value();
-// 					if((_ui->comboBox_pointCloudSource->currentIndex() == 0))
-// 					{
-// 						if(models.size() == 1 && !models[0].localTransform().isNull())
-// 						{
-// 							// get just the depth
-// 							cv::Mat rgb;
-// 							cv::Mat depth;
-// 							if(cacheHasCompressedImage)
-// 							{
-// 								cachedSignatures.find(iter->first)->sensorData().uncompressDataConst(&rgb, &depth);
-// 							}
-// 							else if(_dbDriver)
-// 							{
-// 								SensorData data;
-// 								_dbDriver->getNodeData(iter->first, data, true, false, false, false);
-// 								data.uncompressDataConst(&rgb, &depth);
-// 							}
-// 							if(!rgb.empty() && !depth.empty())
-// 							{
-// 								CameraModel rgbModel = models[0];
-// 								CameraModel depthModel = rgbModel;
-// 								if(rgb.cols > depth.cols)
-// 								{
-// 									UASSERT(rgb.cols % depth.cols == 0);
-// 									depthModel = depthModel.scaled(double(depth.cols)/double(rgb.cols));
-// 								}
+					UDEBUG("");
+					double nearPlaneDist = _ui->doubleSpinBox_openchisel_near_plane_dist->value();
+					double farPlaneDist = _ui->doubleSpinBox_openchisel_far_plane_dist->value();
+					if((_ui->comboBox_pointCloudSource->currentIndex() == 0))
+					{
+						if(models.size() == 1 && !models[0].localTransform().isNull())
+						{
+							// get just the depth
+							cv::Mat rgb;
+							cv::Mat depth;
+							if(cacheHasCompressedImage)
+							{
+								cachedSignatures.find(iter->first)->sensorData().uncompressDataConst(&rgb, &depth);
+							}
+							else if(_dbDriver)
+							{
+								SensorData data;
+								_dbDriver->getNodeData(iter->first, data, true, false, false, false);
+								data.uncompressDataConst(&rgb, &depth);
+							}
+							if(!rgb.empty() && !depth.empty())
+							{
+								CameraModel rgbModel = models[0];
+								CameraModel depthModel = rgbModel;
+								if(rgb.cols > depth.cols)
+								{
+									UASSERT(rgb.cols % depth.cols == 0);
+									depthModel = depthModel.scaled(double(depth.cols)/double(rgb.cols));
+								}
 
-// 								if(depth.type() == CV_16UC1)
-// 								{
-// 									depth = util2d::cvtDepthToFloat(depth);
-// 								}
+								if(depth.type() == CV_16UC1)
+								{
+									depth = util2d::cvtDepthToFloat(depth);
+								}
 
-// 								std::shared_ptr<chisel::ColorImage<unsigned char> > colorChisel = colorImageToChisel(rgb);
-// 								std::shared_ptr<chisel::DepthImage<float> > depthChisel = depthImageToChisel(depth);
+								std::shared_ptr<chisel::ColorImage<unsigned char> > colorChisel = colorImageToChisel(rgb);
+								std::shared_ptr<chisel::DepthImage<float> > depthChisel = depthImageToChisel(depth);
 
-// 								chisel::PinholeCamera cameraColor = cameraModelToChiselCamera(rgbModel);
-// 								chisel::PinholeCamera cameraDepth = cameraModelToChiselCamera(depthModel);
-// 								cameraColor.SetNearPlane(nearPlaneDist);
-// 								cameraColor.SetFarPlane(farPlaneDist);
-// 								cameraDepth.SetNearPlane(nearPlaneDist);
-// 								cameraDepth.SetFarPlane(farPlaneDist);
+								chisel::PinholeCamera cameraColor = cameraModelToChiselCamera(rgbModel);
+								chisel::PinholeCamera cameraDepth = cameraModelToChiselCamera(depthModel);
+								cameraColor.SetNearPlane(nearPlaneDist);
+								cameraColor.SetFarPlane(farPlaneDist);
+								cameraDepth.SetNearPlane(nearPlaneDist);
+								cameraDepth.SetFarPlane(farPlaneDist);
 
-// 								chisel::Transform  pose_rel_to_first_frame = (poses.at(iter->first)*models[0].localTransform()).toEigen3f();
-// 								chiselMap->IntegrateDepthScanColor<float, unsigned char>(projectionIntegrator, depthChisel, pose_rel_to_first_frame, cameraDepth, colorChisel, pose_rel_to_first_frame, cameraColor);
-// 								UDEBUG("");
-// 							}
-// 							else
-// 							{
-// 								_progressDialog->appendText(tr("OpenChisel: Depth and RGB images not found for %1!").arg(iter->first), Qt::darkYellow);
-// 							}
-// 						}
-// 						else
-// 						{
-// 							_progressDialog->appendText(tr("OpenChisel: Invalid camera model for cloud %1! Only single RGB-D camera supported.").arg(iter->first), Qt::darkYellow);
-// 							_progressDialog->setAutoClose(false);
-// 							break;
-// 						}
-// 					}
-// 					else if(!scanInfo.localTransform().isNull())
-// 					{
-// 						chisel::PointCloudPtr chiselCloud = pointCloudRGBToChisel(*iter->second, scanInfo.localTransform().inverse());
-// 						chisel::Transform  pose_rel_to_first_frame = (poses.at(iter->first)*scanInfo.localTransform()).toEigen3f();
-// 						chiselMap->IntegratePointCloud(projectionIntegrator, *chiselCloud, pose_rel_to_first_frame, farPlaneDist);
-// 						UDEBUG("");
-// 					}
-// 					else
-// 					{
-// 						_progressDialog->appendText(tr("OpenChisel: not valid scan info for cloud %1!").arg(iter->first), Qt::darkYellow);
-// 						_progressDialog->setAutoClose(false);
-// 						break;
-// 					}
-// 					chiselMap->UpdateMeshes();
-// 					UDEBUG("");
-// 					_progressDialog->appendText(tr("OpenChisel: Integrated cloud %1 (%2/%3) to TSDF volume").arg(iter->first).arg(cloudsAdded).arg(clouds_out.size()));
+								chisel::Transform  pose_rel_to_first_frame = (poses.at(iter->first)*models[0].localTransform()).toEigen3f();
+								chiselMap->IntegrateDepthScanColor<float, unsigned char>(projectionIntegrator, depthChisel, pose_rel_to_first_frame, cameraDepth, colorChisel, pose_rel_to_first_frame, cameraColor);
+								UDEBUG("");
+							}
+							else
+							{
+								_progressDialog->appendText(tr("OpenChisel: Depth and RGB images not found for %1!").arg(iter->first), Qt::darkYellow);
+							}
+						}
+						else
+						{
+							_progressDialog->appendText(tr("OpenChisel: Invalid camera model for cloud %1! Only single RGB-D camera supported.").arg(iter->first), Qt::darkYellow);
+							_progressDialog->setAutoClose(false);
+							break;
+						}
+					}
+					else if(!scanInfo.localTransform().isNull())
+					{
+						chisel::PointCloudPtr chiselCloud = pointCloudRGBToChisel(*iter->second, scanInfo.localTransform().inverse());
+						chisel::Transform  pose_rel_to_first_frame = (poses.at(iter->first)*scanInfo.localTransform()).toEigen3f();
+						chiselMap->IntegratePointCloud(projectionIntegrator, *chiselCloud, pose_rel_to_first_frame, farPlaneDist);
+						UDEBUG("");
+					}
+					else
+					{
+						_progressDialog->appendText(tr("OpenChisel: not valid scan info for cloud %1!").arg(iter->first), Qt::darkYellow);
+						_progressDialog->setAutoClose(false);
+						break;
+					}
+					chiselMap->UpdateMeshes();
+					UDEBUG("");
+					_progressDialog->appendText(tr("OpenChisel: Integrated cloud %1 (%2/%3) to TSDF volume").arg(iter->first).arg(cloudsAdded).arg(clouds_mesh.size()));
 
-// 					_progressDialog->incrementStep();
-// 					QApplication::processEvents();
-// 					if(_canceled)
-// 					{
-// 						return false;
-// 					}
-// 				}
+					_progressDialog->incrementStep();
+					QApplication::processEvents();
+					if(_canceled)
+					{
+						return false;
+					}
+				}
 			}
 			else
 #endif
 
 			if(_ui->comboBox_pipeline->currentIndex() == 0)
 			{
-// 				if(_ui->comboBox_meshingApproach->currentIndex()==2)
-// 				{
-// 					_progressDialog->appendText(tr("Creating TSDF volume with CPUTSDF... "));
-// 				}
-// 				else
-// 				{
-// 					_progressDialog->appendText(tr("Organized fast mesh... "));
-// 				}
-// 				QApplication::processEvents();
-// 				uSleep(100);
-// 				QApplication::processEvents();
+				if(_ui->comboBox_meshingApproach->currentIndex()==2)
+				{
+					_progressDialog->appendText(tr("Creating TSDF volume with CPUTSDF... "));
+				}
+				else
+				{
+					_progressDialog->appendText(tr("Organized fast mesh... "));
+				}
+				QApplication::processEvents();
+				uSleep(100);
+				QApplication::processEvents();
 
-// 				pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr mergedClouds(new pcl::PointCloud<pcl::PointXYZRGBNormal>);
-// 				std::vector<pcl::Vertices> mergedPolygons;
+				pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr mergedClouds(new pcl::PointCloud<pcl::PointXYZRGBNormal>);
+				std::vector<pcl::Vertices> mergedPolygons;
 
-// 				int cloudsAdded = 1;
-// 				for(std::map<int, pcl::PCLPointCloud2::Ptr >::iterator iter=clouds_out.begin();
-// 					iter!= clouds_out.end();
-// 					++iter,++cloudsAdded)
-// 				{
-// 					if(iter->second->isOrganized())
-// 					{
-// 						if(iter->second->size())
-// 						{
-// 							Eigen::Vector3f viewpoint(0.0f,0.0f,0.0f);
+				int cloudsAdded = 1;
+				for(std::map<int, pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr >::iterator iter=clouds_mesh.begin();
+					iter!= clouds_mesh.end();
+					++iter,++cloudsAdded)
+				{
+					if(iter->second->isOrganized())
+					{
+						if(iter->second->size())
+						{
+							Eigen::Vector3f viewpoint(0.0f,0.0f,0.0f);
 
-// 							std::vector<CameraModel> models;
-// 							std::vector<StereoCameraModel> stereoModels;
-// 							if(cachedSignatures.contains(iter->first))
-// 							{
-// 								const SensorData & data = cachedSignatures.find(iter->first)->sensorData();
-// 								models = data.cameraModels();
-// 								stereoModels = data.stereoCameraModels();
-// 							}
-// 							else if(_dbDriver)
-// 							{
-// 								_dbDriver->getCalibration(iter->first, models, stereoModels);
-// 							}
+							std::vector<CameraModel> models;
+							std::vector<StereoCameraModel> stereoModels;
+							if(cachedSignatures.contains(iter->first))
+							{
+								const SensorData & data = cachedSignatures.find(iter->first)->sensorData();
+								models = data.cameraModels();
+								stereoModels = data.stereoCameraModels();
+							}
+							else if(_dbDriver)
+							{
+								_dbDriver->getCalibration(iter->first, models, stereoModels);
+							}
 
-// #ifdef RTABMAP_CPUTSDF
-// 							if(_ui->comboBox_meshingApproach->currentIndex()==2 && _ui->checkBox_assemble->isChecked())
-// 							{
-// 								if(tsdf.get() == 0)
-// 								{
-// 									if(models.size()==1 && models[0].isValidForProjection() && models[0].imageHeight()>0 && models[0].imageWidth()>0)
-// 									{
-// 										float tsdf_size = _ui->doubleSpinBox_cputsdf_size->value();
-// 										float cell_size = _ui->doubleSpinBox_cputsdf_resolution->value();
-// 										int num_random_splits = _ui->spinBox_cputsdf_randomSplit->value();
-// 										int tsdf_res;
-// 										int desired_res = tsdf_size / cell_size;
-// 										// Snap to nearest power of 2;
-// 										int n = 1;
-// 										while (desired_res > n)
-// 										{
-// 											n *= 2;
-// 										}
-// 										tsdf_res = n;
-// 										_progressDialog->appendText(tr("CPU-TSDF: Setting resolution: %1 with grid size %2").arg(tsdf_res).arg(tsdf_size));
-// 										tsdf.reset (new cpu_tsdf::TSDFVolumeOctree);
-// 										tsdf->setGridSize (tsdf_size, tsdf_size, tsdf_size);
-// 										tsdf->setResolution (tsdf_res, tsdf_res, tsdf_res);
-// 										float decimation = float(models[0].imageWidth()) / float(iter->second->width);
-// 										tsdf->setImageSize (models[0].imageWidth()/decimation, models[0].imageHeight()/decimation);
-// 										tsdf->setCameraIntrinsics (models[0].fx()/decimation, models[0].fy()/decimation, models[0].cx()/decimation, models[0].cy()/decimation);
-// 										tsdf->setNumRandomSplts (num_random_splits);
-// 										tsdf->setSensorDistanceBounds (0, 9999);
-// 										tsdf->setIntegrateColor(true);
-// 										tsdf->setDepthTruncationLimits (_ui->doubleSpinBox_cputsdf_tuncPos->value(), _ui->doubleSpinBox_cputsdf_tuncNeg->value());
-// 										tsdf->reset ();
-// 									}
-// 									else
-// 									{
-// 										_progressDialog->appendText(tr("CPU-TSDF: Invalid camera model! Only single RGB-D camera supported."), Qt::darkYellow);
-// 										_progressDialog->setAutoClose(false);
-// 										break;
-// 									}
-// 								}
+#ifdef RTABMAP_CPUTSDF
+							if(_ui->comboBox_meshingApproach->currentIndex()==2 && _ui->checkBox_assemble->isChecked())
+							{
+								if(tsdf.get() == 0)
+								{
+									if(models.size()==1 && models[0].isValidForProjection() && models[0].imageHeight()>0 && models[0].imageWidth()>0)
+									{
+										float tsdf_size = _ui->doubleSpinBox_cputsdf_size->value();
+										float cell_size = _ui->doubleSpinBox_cputsdf_resolution->value();
+										int num_random_splits = _ui->spinBox_cputsdf_randomSplit->value();
+										int tsdf_res;
+										int desired_res = tsdf_size / cell_size;
+										// Snap to nearest power of 2;
+										int n = 1;
+										while (desired_res > n)
+										{
+											n *= 2;
+										}
+										tsdf_res = n;
+										_progressDialog->appendText(tr("CPU-TSDF: Setting resolution: %1 with grid size %2").arg(tsdf_res).arg(tsdf_size));
+										tsdf.reset (new cpu_tsdf::TSDFVolumeOctree);
+										tsdf->setGridSize (tsdf_size, tsdf_size, tsdf_size);
+										tsdf->setResolution (tsdf_res, tsdf_res, tsdf_res);
+										float decimation = float(models[0].imageWidth()) / float(iter->second->width);
+										tsdf->setImageSize (models[0].imageWidth()/decimation, models[0].imageHeight()/decimation);
+										tsdf->setCameraIntrinsics (models[0].fx()/decimation, models[0].fy()/decimation, models[0].cx()/decimation, models[0].cy()/decimation);
+										tsdf->setNumRandomSplts (num_random_splits);
+										tsdf->setSensorDistanceBounds (0, 9999);
+										tsdf->setIntegrateColor(true);
+										tsdf->setDepthTruncationLimits (_ui->doubleSpinBox_cputsdf_tuncPos->value(), _ui->doubleSpinBox_cputsdf_tuncNeg->value());
+										tsdf->reset ();
+									}
+									else
+									{
+										_progressDialog->appendText(tr("CPU-TSDF: Invalid camera model! Only single RGB-D camera supported."), Qt::darkYellow);
+										_progressDialog->setAutoClose(false);
+										break;
+									}
+								}
 
-// 								if(tsdf.get())
-// 								{
-// 									if(tsdf.get() && models.size() == 1 && !models[0].localTransform().isNull())
-// 									{
-// 										Eigen::Affine3d  pose_rel_to_first_frame = ((poses.begin()->second.inverse() * poses.at(iter->first))*models[0].localTransform()).toEigen3d();
-// 										if(!tsdf->integrateCloud(*util3d::transformPointCloud(iter->second, models[0].localTransform().inverse()), pcl::PointCloud<pcl::Normal>(), pose_rel_to_first_frame))
-// 										{
-// 											_progressDialog->appendText(tr("CPU-TSDF: Failed integrating cloud %1 (%2/%3) to TSDF volume").arg(iter->first).arg(cloudsAdded).arg(clouds_out.size()));
-// 										}
-// 										else
-// 										{
-// 											_progressDialog->appendText(tr("CPU-TSDF: Integrated cloud %1 (%2/%3) to TSDF volume").arg(iter->first).arg(cloudsAdded).arg(clouds_out.size()));
-// 										}
-// 									}
-// 								}
-// 							}
-// 							else
-// #endif
-// 							{
-// 								if((_ui->comboBox_frame->isEnabled() && _ui->comboBox_frame->currentIndex() != 2) ||
-// 									!iter->second->isOrganized())
-// 								{
-// 									if(models.size() && !models[0].localTransform().isNull())
-// 									{
-// 										viewpoint[0] = models[0].localTransform().x();
-// 										viewpoint[1] = models[0].localTransform().y();
-// 										viewpoint[2] = models[0].localTransform().z();
-// 									}
-// 									else if(stereoModels.size() && !stereoModels[0].localTransform().isNull())
-// 									{
-// 										viewpoint[0] = stereoModels[0].localTransform().x();
-// 										viewpoint[1] = stereoModels[0].localTransform().y();
-// 										viewpoint[2] = stereoModels[0].localTransform().z();
-// 									}
-// 								}
+								if(tsdf.get())
+								{
+									if(tsdf.get() && models.size() == 1 && !models[0].localTransform().isNull())
+									{
+										Eigen::Affine3d  pose_rel_to_first_frame = ((poses.begin()->second.inverse() * poses.at(iter->first))*models[0].localTransform()).toEigen3d();
+										if(!tsdf->integrateCloud(*util3d::transformPointCloud(iter->second, models[0].localTransform().inverse()), pcl::PointCloud<pcl::Normal>(), pose_rel_to_first_frame))
+										{
+											_progressDialog->appendText(tr("CPU-TSDF: Failed integrating cloud %1 (%2/%3) to TSDF volume").arg(iter->first).arg(cloudsAdded).arg(clouds_mesh.size()));
+										}
+										else
+										{
+											_progressDialog->appendText(tr("CPU-TSDF: Integrated cloud %1 (%2/%3) to TSDF volume").arg(iter->first).arg(cloudsAdded).arg(clouds_mesh.size()));
+										}
+									}
+								}
+							}
+							else
+#endif
+							{
+								if((_ui->comboBox_frame->isEnabled() && _ui->comboBox_frame->currentIndex() != 2) ||
+									!iter->second->isOrganized())
+								{
+									if(models.size() && !models[0].localTransform().isNull())
+									{
+										viewpoint[0] = models[0].localTransform().x();
+										viewpoint[1] = models[0].localTransform().y();
+										viewpoint[2] = models[0].localTransform().z();
+									}
+									else if(stereoModels.size() && !stereoModels[0].localTransform().isNull())
+									{
+										viewpoint[0] = stereoModels[0].localTransform().x();
+										viewpoint[1] = stereoModels[0].localTransform().y();
+										viewpoint[2] = stereoModels[0].localTransform().z();
+									}
+								}
 
-// 								std::vector<pcl::Vertices> polygons = util3d::organizedFastMesh(
-// 										iter->second,
-// 										_ui->doubleSpinBox_mesh_angleTolerance->value()*M_PI/180.0,
-// 										_ui->checkBox_mesh_quad->isEnabled() && _ui->checkBox_mesh_quad->isChecked(),
-// 										_ui->spinBox_mesh_triangleSize->value(),
-// 										viewpoint);
+								std::vector<pcl::Vertices> polygons = util3d::organizedFastMesh(
+										iter->second,
+										_ui->doubleSpinBox_mesh_angleTolerance->value()*M_PI/180.0,
+										_ui->checkBox_mesh_quad->isEnabled() && _ui->checkBox_mesh_quad->isChecked(),
+										_ui->spinBox_mesh_triangleSize->value(),
+										viewpoint);
 
-// 								if(_ui->spinBox_mesh_minClusterSize->value() != 0)
-// 								{
-// 									_progressDialog->appendText(tr("Filter small polygon clusters..."));
-// 									QApplication::processEvents();
+								if(_ui->spinBox_mesh_minClusterSize->value() != 0)
+								{
+									_progressDialog->appendText(tr("Filter small polygon clusters..."));
+									QApplication::processEvents();
 
-// 									// filter polygons
-// 									std::vector<std::set<int> > neighbors;
-// 									std::vector<std::set<int> > vertexToPolygons;
-// 									util3d::createPolygonIndexes(polygons,
-// 											(int)iter->second->size(),
-// 											neighbors,
-// 											vertexToPolygons);
-// 									std::list<std::list<int> > clusters = util3d::clusterPolygons(
-// 											neighbors,
-// 											_ui->spinBox_mesh_minClusterSize->value()<0?0:_ui->spinBox_mesh_minClusterSize->value());
+									// filter polygons
+									std::vector<std::set<int> > neighbors;
+									std::vector<std::set<int> > vertexToPolygons;
+									util3d::createPolygonIndexes(polygons,
+											(int)iter->second->size(),
+											neighbors,
+											vertexToPolygons);
+									std::list<std::list<int> > clusters = util3d::clusterPolygons(
+											neighbors,
+											_ui->spinBox_mesh_minClusterSize->value()<0?0:_ui->spinBox_mesh_minClusterSize->value());
 
-// 									std::vector<pcl::Vertices> filteredPolygons(polygons.size());
-// 									if(_ui->spinBox_mesh_minClusterSize->value() < 0)
-// 									{
-// 										// only keep the biggest cluster
-// 										std::list<std::list<int> >::iterator biggestClusterIndex = clusters.end();
-// 										unsigned int biggestClusterSize = 0;
-// 										for(std::list<std::list<int> >::iterator iter=clusters.begin(); iter!=clusters.end(); ++iter)
-// 										{
-// 											if(iter->size() > biggestClusterSize)
-// 											{
-// 												biggestClusterIndex = iter;
-// 												biggestClusterSize = iter->size();
-// 											}
-// 										}
-// 										if(biggestClusterIndex != clusters.end())
-// 										{
-// 											int oi=0;
-// 											for(std::list<int>::iterator jter=biggestClusterIndex->begin(); jter!=biggestClusterIndex->end(); ++jter)
-// 											{
-// 												filteredPolygons[oi++] = polygons.at(*jter);
-// 											}
-// 											filteredPolygons.resize(oi);
-// 										}
-// 									}
-// 									else
-// 									{
-// 										int oi=0;
-// 										for(std::list<std::list<int> >::iterator iter=clusters.begin(); iter!=clusters.end(); ++iter)
-// 										{
-// 											for(std::list<int>::iterator jter=iter->begin(); jter!=iter->end(); ++jter)
-// 											{
-// 												filteredPolygons[oi++] = polygons.at(*jter);
-// 											}
-// 										}
-// 										filteredPolygons.resize(oi);
-// 									}
-// 									int before = (int)polygons.size();
-// 									polygons = filteredPolygons;
+									std::vector<pcl::Vertices> filteredPolygons(polygons.size());
+									if(_ui->spinBox_mesh_minClusterSize->value() < 0)
+									{
+										// only keep the biggest cluster
+										std::list<std::list<int> >::iterator biggestClusterIndex = clusters.end();
+										unsigned int biggestClusterSize = 0;
+										for(std::list<std::list<int> >::iterator iter=clusters.begin(); iter!=clusters.end(); ++iter)
+										{
+											if(iter->size() > biggestClusterSize)
+											{
+												biggestClusterIndex = iter;
+												biggestClusterSize = iter->size();
+											}
+										}
+										if(biggestClusterIndex != clusters.end())
+										{
+											int oi=0;
+											for(std::list<int>::iterator jter=biggestClusterIndex->begin(); jter!=biggestClusterIndex->end(); ++jter)
+											{
+												filteredPolygons[oi++] = polygons.at(*jter);
+											}
+											filteredPolygons.resize(oi);
+										}
+									}
+									else
+									{
+										int oi=0;
+										for(std::list<std::list<int> >::iterator iter=clusters.begin(); iter!=clusters.end(); ++iter)
+										{
+											for(std::list<int>::iterator jter=iter->begin(); jter!=iter->end(); ++jter)
+											{
+												filteredPolygons[oi++] = polygons.at(*jter);
+											}
+										}
+										filteredPolygons.resize(oi);
+									}
+									int before = (int)polygons.size();
+									polygons = filteredPolygons;
 
-// 									if(polygons.size() == 0)
-// 									{
-// 										std::string msg = uFormat("All %d polygons filtered after polygon cluster filtering. Cluster minimum size is %d.", before, _ui->spinBox_mesh_minClusterSize->value());
-// 										_progressDialog->appendText(msg.c_str(), Qt::darkYellow);
-// 										UWARN(msg.c_str());
-// 									}
+									if(polygons.size() == 0)
+									{
+										std::string msg = uFormat("All %d polygons filtered after polygon cluster filtering. Cluster minimum size is %d.", before, _ui->spinBox_mesh_minClusterSize->value());
+										_progressDialog->appendText(msg.c_str(), Qt::darkYellow);
+										UWARN(msg.c_str());
+									}
 
-// 									_progressDialog->appendText(tr("Filtered %1 polygons.").arg(before-(int)polygons.size()));
-// 									QApplication::processEvents();
-// 								}
+									_progressDialog->appendText(tr("Filtered %1 polygons.").arg(before-(int)polygons.size()));
+									QApplication::processEvents();
+								}
 
-// 								_progressDialog->appendText(tr("Mesh %1 created with %2 polygons (%3/%4).").arg(iter->first).arg(polygons.size()).arg(cloudsAdded).arg(clouds_out.size()));
+								_progressDialog->appendText(tr("Mesh %1 created with %2 polygons (%3/%4).").arg(iter->first).arg(polygons.size()).arg(cloudsAdded).arg(clouds_mesh.size()));
 
-// 								pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr denseCloud(new pcl::PointCloud<pcl::PointXYZRGBNormal>);
-// 								std::vector<pcl::Vertices> densePolygons;
-// 								std::vector<int> denseToOrganizedIndices = util3d::filterNotUsedVerticesFromMesh(*iter->second, polygons, *denseCloud, densePolygons);
+								pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr denseCloud(new pcl::PointCloud<pcl::PointXYZRGBNormal>);
+								std::vector<pcl::Vertices> densePolygons;
+								std::vector<int> denseToOrganizedIndices = util3d::filterNotUsedVerticesFromMesh(*iter->second, polygons, *denseCloud, densePolygons);
 
-// 								if(!_ui->checkBox_assemble->isChecked() ||
-// 									 (_ui->checkBox_textureMapping->isEnabled() &&
-// 									  _ui->checkBox_textureMapping->isChecked() &&
-// 									  _ui->doubleSpinBox_voxelSize_assembled->value() == 0.0)) // don't assemble now if we are texturing
-// 								{
-// 									if(_ui->checkBox_assemble->isChecked())
-// 									{
-// 										denseCloud = util3d::transformPointCloud(denseCloud, poses.at(iter->first));
-// 									}
+								if(!_ui->checkBox_assemble->isChecked() ||
+									 (_ui->checkBox_textureMapping->isEnabled() &&
+									  _ui->checkBox_textureMapping->isChecked() &&
+									  _ui->doubleSpinBox_voxelSize_assembled->value() == 0.0)) // don't assemble now if we are texturing
+								{
+									if(_ui->checkBox_assemble->isChecked())
+									{
+										denseCloud = util3d::transformPointCloud(denseCloud, poses.at(iter->first));
+									}
 
-// 									pcl::PolygonMesh::Ptr mesh(new pcl::PolygonMesh);
-// 									pcl::toPCLPointCloud2(*denseCloud, mesh->cloud);
-// 									mesh->polygons = densePolygons;
+									pcl::PolygonMesh::Ptr mesh(new pcl::PolygonMesh);
+									pcl::toPCLPointCloud2(*denseCloud, mesh->cloud);
+									mesh->polygons = densePolygons;
 
-// 									organizedIndices.insert(std::make_pair(iter->first, denseToOrganizedIndices));
-// 									organizedCloudSizes.insert(std::make_pair(iter->first, cv::Size(iter->second->width, iter->second->height)));
+									organizedIndices.insert(std::make_pair(iter->first, denseToOrganizedIndices));
+									organizedCloudSizes.insert(std::make_pair(iter->first, cv::Size(iter->second->width, iter->second->height)));
 
-// 									meshes.insert(std::make_pair(iter->first, mesh));
-// 								}
-// 								else
-// 								{
-// 									denseCloud = util3d::transformPointCloud(denseCloud, poses.at(iter->first));
-// 									if(mergedClouds->size() == 0)
-// 									{
-// 										*mergedClouds = *denseCloud;
-// 										mergedPolygons = densePolygons;
-// 									}
-// 									else
-// 									{
-// 										util3d::appendMesh(*mergedClouds, mergedPolygons, *denseCloud, densePolygons);
-// 									}
-// 								}
-// 							}
-// 						}
-// 						else
-// 						{
-// 							_progressDialog->appendText(tr("Mesh %1 not created (no valid points) (%2/%3).").arg(iter->first).arg(cloudsAdded).arg(clouds_out.size()));
-// 						}
-// 					}
-// 					else
-// 					{
-// 						int weight = 0;
-// 						if(cachedSignatures.contains(iter->first))
-// 						{
-// 							const Signature & s = cachedSignatures.find(iter->first).value();
-// 							weight = s.getWeight();
-// 						}
-// 						else if(_dbDriver)
-// 						{
-// 							_dbDriver->getWeight(iter->first, weight);
-// 						}
-// 						if(weight>=0) // don't show error for intermediate nodes
-// 						{
-// 							_progressDialog->appendText(tr("Mesh %1 not created (cloud is not organized). You may want to check cloud regeneration option (%2/%3).").arg(iter->first).arg(cloudsAdded).arg(clouds_out.size()));
-// 						}
-// 					}
+									meshes.insert(std::make_pair(iter->first, mesh));
+								}
+								else
+								{
+									denseCloud = util3d::transformPointCloud(denseCloud, poses.at(iter->first));
+									if(mergedClouds->size() == 0)
+									{
+										*mergedClouds = *denseCloud;
+										mergedPolygons = densePolygons;
+									}
+									else
+									{
+										util3d::appendMesh(*mergedClouds, mergedPolygons, *denseCloud, densePolygons);
+									}
+								}
+							}
+						}
+						else
+						{
+							_progressDialog->appendText(tr("Mesh %1 not created (no valid points) (%2/%3).").arg(iter->first).arg(cloudsAdded).arg(clouds_mesh.size()));
+						}
+					}
+					else
+					{
+						int weight = 0;
+						if(cachedSignatures.contains(iter->first))
+						{
+							const Signature & s = cachedSignatures.find(iter->first).value();
+							weight = s.getWeight();
+						}
+						else if(_dbDriver)
+						{
+							_dbDriver->getWeight(iter->first, weight);
+						}
+						if(weight>=0) // don't show error for intermediate nodes
+						{
+							_progressDialog->appendText(tr("Mesh %1 not created (cloud is not organized). You may want to check cloud regeneration option (%2/%3).").arg(iter->first).arg(cloudsAdded).arg(clouds_mesh.size()));
+						}
+					}
 
-// 					_progressDialog->incrementStep();
-// 					QApplication::processEvents();
-// 					if(_canceled)
-// 					{
-// 						return false;
-// 					}
-// 				}
+					_progressDialog->incrementStep();
+					QApplication::processEvents();
+					if(_canceled)
+					{
+						return false;
+					}
+				}
 
-// 				if(_ui->checkBox_assemble->isChecked() && mergedClouds->size())
-// 				{
-// 					if(_ui->doubleSpinBox_voxelSize_assembled->value())
-// 					{
-// 						_progressDialog->appendText(tr("Filtering assembled mesh for close vertices (points=%1, polygons=%2)...").arg(mergedClouds->size()).arg(mergedPolygons.size()));
-// 						QApplication::processEvents();
+				if(_ui->checkBox_assemble->isChecked() && mergedClouds->size())
+				{
+					if(_ui->doubleSpinBox_voxelSize_assembled->value())
+					{
+						_progressDialog->appendText(tr("Filtering assembled mesh for close vertices (points=%1, polygons=%2)...").arg(mergedClouds->size()).arg(mergedPolygons.size()));
+						QApplication::processEvents();
 
-// 						mergedPolygons = util3d::filterCloseVerticesFromMesh(
-// 								mergedClouds,
-// 								mergedPolygons,
-// 								_ui->doubleSpinBox_voxelSize_assembled->value(),
-// 								M_PI/4,
-// 								true);
+						mergedPolygons = util3d::filterCloseVerticesFromMesh(
+								mergedClouds,
+								mergedPolygons,
+								_ui->doubleSpinBox_voxelSize_assembled->value(),
+								M_PI/4,
+								true);
 
-// 						// filter invalid polygons
-// 						unsigned int count = mergedPolygons.size();
-// 						mergedPolygons = util3d::filterInvalidPolygons(mergedPolygons);
-// 						_progressDialog->appendText(tr("Filtered %1 invalid polygons.").arg(count-mergedPolygons.size()));
-// 						QApplication::processEvents();
+						// filter invalid polygons
+						unsigned int count = mergedPolygons.size();
+						mergedPolygons = util3d::filterInvalidPolygons(mergedPolygons);
+						_progressDialog->appendText(tr("Filtered %1 invalid polygons.").arg(count-mergedPolygons.size()));
+						QApplication::processEvents();
 
-// 						// filter not used vertices
-// 						pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr filteredCloud(new pcl::PointCloud<pcl::PointXYZRGBNormal>);
-// 						std::vector<pcl::Vertices> filteredPolygons;
-// 						util3d::filterNotUsedVerticesFromMesh(*mergedClouds, mergedPolygons, *filteredCloud, filteredPolygons);
-// 						mergedClouds = filteredCloud;
-// 						mergedPolygons = filteredPolygons;
-// 					}
+						// filter not used vertices
+						pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr filteredCloud(new pcl::PointCloud<pcl::PointXYZRGBNormal>);
+						std::vector<pcl::Vertices> filteredPolygons;
+						util3d::filterNotUsedVerticesFromMesh(*mergedClouds, mergedPolygons, *filteredCloud, filteredPolygons);
+						mergedClouds = filteredCloud;
+						mergedPolygons = filteredPolygons;
+					}
 
-// 					pcl::PolygonMesh::Ptr mesh(new pcl::PolygonMesh);
-// 					pcl::toPCLPointCloud2(*mergedClouds, mesh->cloud);
-// 					mesh->polygons = mergedPolygons;
+					pcl::PolygonMesh::Ptr mesh(new pcl::PolygonMesh);
+					pcl::toPCLPointCloud2(*mergedClouds, mesh->cloud);
+					mesh->polygons = mergedPolygons;
 
-// 					meshes.insert(std::make_pair(0, mesh));
+					meshes.insert(std::make_pair(0, mesh));
 
-// 					_progressDialog->incrementStep();
-// 					QApplication::processEvents();
-// 				}
+					_progressDialog->incrementStep();
+					QApplication::processEvents();
+				}
 			}
 			else // dense pipeline
 			{
-// 				if(_ui->comboBox_meshingApproach->currentIndex() == 0)
-// 				{
-// 					_progressDialog->appendText(tr("Greedy projection triangulation... [radius=%1m]").arg(_ui->doubleSpinBox_gp3Radius->value()));
-// 				}
-// 				else
-// 				{
-// 					_progressDialog->appendText(tr("Poisson surface reconstruction..."));
-// 				}
-// 				QApplication::processEvents();
-// 				uSleep(100);
-// 				QApplication::processEvents();
+				if(_ui->comboBox_meshingApproach->currentIndex() == 0)
+				{
+					_progressDialog->appendText(tr("Greedy projection triangulation... [radius=%1m]").arg(_ui->doubleSpinBox_gp3Radius->value()));
+				}
+				else
+				{
+					_progressDialog->appendText(tr("Poisson surface reconstruction..."));
+				}
+				QApplication::processEvents();
+				uSleep(100);
+				QApplication::processEvents();
 
-// 				int cloudsAdded=1;
-// 				for(std::map<int, pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr>::iterator iter=clouds_out.begin();
-// 					iter!= clouds_out.end();
-// 					++iter,++cloudsAdded)
-// 				{
-// 					pcl::PolygonMesh::Ptr mesh(new pcl::PolygonMesh);
-// 					if(_ui->comboBox_meshingApproach->currentIndex() == 0)
-// 					{
-// 						mesh = util3d::createMesh(
-// 								iter->second,
-// 								_ui->doubleSpinBox_gp3Radius->value(),
-// 								_ui->doubleSpinBox_gp3Mu->value());
-// 					}
-// 					else
-// 					{
-// 						pcl::Poisson<pcl::PointXYZRGBNormal> poisson;
-// 						poisson.setOutputPolygons(_ui->checkBox_poisson_outputPolygons->isEnabled()?_ui->checkBox_poisson_outputPolygons->isChecked():false);
-// 						poisson.setManifold(_ui->checkBox_poisson_manifold->isChecked());
-// 						poisson.setSamplesPerNode(_ui->doubleSpinBox_poisson_samples->value());
-// 						int depth = _ui->spinBox_poisson_depth->value();
-// 						if(depth == 0)
-// 						{
-// 							Eigen::Vector4f min,max;
-// 							pcl::getMinMax3D(*iter->second, min, max);
-// 							float mapLength = uMax3(max[0]-min[0], max[1]-min[1], max[2]-min[2]);
-// 							depth = 12;
-// 							for(int i=6; i<12; ++i)
-// 							{
-// 								if(mapLength/float(1<<i) < _ui->doubleSpinBox_poisson_targetPolygonSize->value())
-// 								{
-// 									depth = i;
-// 									break;
-// 								}
-// 							}
-// 							_progressDialog->appendText(tr("Poisson depth resolution chosen is %1, map size (m) = %2x%3x%4")
-// 									.arg(depth)
-// 									.arg(int(max[0]-min[0]))
-// 									.arg(int(max[1]-min[1]))
-// 									.arg(int(max[2]-min[2])));
-// 							QApplication::processEvents();
-// 							uSleep(100);
-// 							QApplication::processEvents();
-// 						}
-// 						poisson.setDepth(depth);
-// 						poisson.setIsoDivide(_ui->spinBox_poisson_iso->value());
-// 						poisson.setSolverDivide(_ui->spinBox_poisson_solver->value());
-// 						poisson.setMinDepth(_ui->spinBox_poisson_minDepth->value());
-// 						poisson.setPointWeight(_ui->doubleSpinBox_poisson_pointWeight->value());
-// 						poisson.setScale(_ui->doubleSpinBox_poisson_scale->value());
-// 						poisson.setInputCloud(iter->second);
-// 						poisson.reconstruct(*mesh);
-// 					}
+				int cloudsAdded=1;
+				for(std::map<int, pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr>::iterator iter=clouds_mesh.begin();
+					iter!= clouds_mesh.end();
+					++iter,++cloudsAdded)
+				{
+					pcl::PolygonMesh::Ptr mesh(new pcl::PolygonMesh);
+					if(_ui->comboBox_meshingApproach->currentIndex() == 0)
+					{
+						mesh = util3d::createMesh(
+								iter->second,
+								_ui->doubleSpinBox_gp3Radius->value(),
+								_ui->doubleSpinBox_gp3Mu->value());
+					}
+					else
+					{
+						pcl::Poisson<pcl::PointXYZRGBNormal> poisson;
+						poisson.setOutputPolygons(_ui->checkBox_poisson_outputPolygons->isEnabled()?_ui->checkBox_poisson_outputPolygons->isChecked():false);
+						poisson.setManifold(_ui->checkBox_poisson_manifold->isChecked());
+						poisson.setSamplesPerNode(_ui->doubleSpinBox_poisson_samples->value());
+						int depth = _ui->spinBox_poisson_depth->value();
+						if(depth == 0)
+						{
+							Eigen::Vector4f min,max;
+							pcl::getMinMax3D(*iter->second, min, max);
+							float mapLength = uMax3(max[0]-min[0], max[1]-min[1], max[2]-min[2]);
+							depth = 12;
+							for(int i=6; i<12; ++i)
+							{
+								if(mapLength/float(1<<i) < _ui->doubleSpinBox_poisson_targetPolygonSize->value())
+								{
+									depth = i;
+									break;
+								}
+							}
+							_progressDialog->appendText(tr("Poisson depth resolution chosen is %1, map size (m) = %2x%3x%4")
+									.arg(depth)
+									.arg(int(max[0]-min[0]))
+									.arg(int(max[1]-min[1]))
+									.arg(int(max[2]-min[2])));
+							QApplication::processEvents();
+							uSleep(100);
+							QApplication::processEvents();
+						}
+						poisson.setDepth(depth);
+						poisson.setIsoDivide(_ui->spinBox_poisson_iso->value());
+						poisson.setSolverDivide(_ui->spinBox_poisson_solver->value());
+						poisson.setMinDepth(_ui->spinBox_poisson_minDepth->value());
+						poisson.setPointWeight(_ui->doubleSpinBox_poisson_pointWeight->value());
+						poisson.setScale(_ui->doubleSpinBox_poisson_scale->value());
+						poisson.setInputCloud(iter->second);
+						poisson.reconstruct(*mesh);
+					}
 
-// 					_progressDialog->appendText(tr("Mesh %1 created with %2 polygons (%3/%4).").arg(iter->first).arg(mesh->polygons.size()).arg(cloudsAdded).arg(clouds_out.size()));
-// 					QApplication::processEvents();
+					_progressDialog->appendText(tr("Mesh %1 created with %2 polygons (%3/%4).").arg(iter->first).arg(mesh->polygons.size()).arg(cloudsAdded).arg(clouds_mesh.size()));
+					QApplication::processEvents();
 
-// 					if(mesh->polygons.size()>0)
-// 					{
-// 						TexturingState texturingState(_progressDialog, false);
+					if(mesh->polygons.size()>0)
+					{
+						TexturingState texturingState(_progressDialog, false);
 
-// 						if((_ui->comboBox_pointCloudSource->currentIndex() == 1) && !_scansHaveRGB)
-// 						{
-// 							// When laser scans are exported, convert Intensity to GrayScale
-// 							int maxIntensity = 1;
-// 							// first: get max intensity
-// 							for(size_t i=0; i<iter->second->size(); ++i)
-// 							{
-// 								int intensity =
-// 										int(iter->second->points[i].r) |
-// 										int(iter->second->points[i].g) << 8 |
-// 										int(iter->second->points[i].b) << 16 |
-// 										int(iter->second->points[i].a) << 24;
-// 								if(intensity > maxIntensity)
-// 								{
-// 									maxIntensity = intensity;
-// 								}
-// 							}
-// 							// second: convert to grayscale
-// 							for(size_t i=0; i<iter->second->size(); ++i)
-// 							{
-// 								int intensity =
-// 										int(iter->second->points[i].r) |
-// 										int(iter->second->points[i].g) << 8 |
-// 										int(iter->second->points[i].b) << 16 |
-// 										int(iter->second->points[i].a) << 24;
-// 								intensity = intensity*255/maxIntensity;
-// 								iter->second->points[i].r = (unsigned char)intensity;
-// 								iter->second->points[i].g = (unsigned char)intensity;
-// 								iter->second->points[i].b = (unsigned char)intensity;
-// 								iter->second->points[i].a = (unsigned char)255;
-// 							}
-// 						}
+						if((_ui->comboBox_pointCloudSource->currentIndex() == 1) && !_scansHaveRGB)
+						{
+							// When laser scans are exported, convert Intensity to GrayScale
+							int maxIntensity = 1;
+							// first: get max intensity
+							for(size_t i=0; i<iter->second->size(); ++i)
+							{
+								int intensity =
+										int(iter->second->points[i].r) |
+										int(iter->second->points[i].g) << 8 |
+										int(iter->second->points[i].b) << 16 |
+										int(iter->second->points[i].a) << 24;
+								if(intensity > maxIntensity)
+								{
+									maxIntensity = intensity;
+								}
+							}
+							// second: convert to grayscale
+							for(size_t i=0; i<iter->second->size(); ++i)
+							{
+								int intensity =
+										int(iter->second->points[i].r) |
+										int(iter->second->points[i].g) << 8 |
+										int(iter->second->points[i].b) << 16 |
+										int(iter->second->points[i].a) << 24;
+								intensity = intensity*255/maxIntensity;
+								iter->second->points[i].r = (unsigned char)intensity;
+								iter->second->points[i].g = (unsigned char)intensity;
+								iter->second->points[i].b = (unsigned char)intensity;
+								iter->second->points[i].a = (unsigned char)255;
+							}
+						}
 
-// 						util3d::denseMeshPostProcessing<pcl::PointXYZRGBNormal>(
-// 								mesh,
-// 								_ui->doubleSpinBox_meshDecimationFactor->isEnabled()?(float)_ui->doubleSpinBox_meshDecimationFactor->value():0.0f,
-// 								_ui->spinBox_meshMaxPolygons->isEnabled()?_ui->spinBox_meshMaxPolygons->value():0,
-// 								iter->second,
-// 								(float)_ui->doubleSpinBox_transferColorRadius->value(),
-// 								!(_ui->checkBox_textureMapping->isEnabled() && _ui->checkBox_textureMapping->isChecked()),
-// 								_ui->checkBox_cleanMesh->isChecked(),
-// 								_ui->spinBox_mesh_minClusterSize->value(),
-// 								&texturingState);
-// 						meshes.insert(std::make_pair(iter->first, mesh));
-// 					}
-// 					else
-// 					{
-// 						_progressDialog->appendText(tr("No polygons created for cloud %1!").arg(iter->first), Qt::darkYellow);
-// 						_progressDialog->setAutoClose(false);
-// 					}
+						util3d::denseMeshPostProcessing<pcl::PointXYZRGBNormal>(
+								mesh,
+								_ui->doubleSpinBox_meshDecimationFactor->isEnabled()?(float)_ui->doubleSpinBox_meshDecimationFactor->value():0.0f,
+								_ui->spinBox_meshMaxPolygons->isEnabled()?_ui->spinBox_meshMaxPolygons->value():0,
+								iter->second,
+								(float)_ui->doubleSpinBox_transferColorRadius->value(),
+								!(_ui->checkBox_textureMapping->isEnabled() && _ui->checkBox_textureMapping->isChecked()),
+								_ui->checkBox_cleanMesh->isChecked(),
+								_ui->spinBox_mesh_minClusterSize->value(),
+								&texturingState);
+						meshes.insert(std::make_pair(iter->first, mesh));
+					}
+					else
+					{
+						_progressDialog->appendText(tr("No polygons created for cloud %1!").arg(iter->first), Qt::darkYellow);
+						_progressDialog->setAutoClose(false);
+					}
 
-// 					_progressDialog->incrementStep(_ui->checkBox_assemble->isChecked()?poses.size():1);
-// 					QApplication::processEvents();
-// 					if(_canceled)
-// 					{
-// 						return false;
-// 					}
-// 				}
+					_progressDialog->incrementStep(_ui->checkBox_assemble->isChecked()?poses.size():1);
+					QApplication::processEvents();
+					if(_canceled)
+					{
+						return false;
+					}
+				}
 			}
 		}
 		else if(_ui->checkBox_meshing->isChecked())
@@ -2765,14 +2775,14 @@ bool ExportCloudsDialog::getExportedClouds(
 		}
 		else if(_ui->checkBox_cameraProjection->isEnabled() &&
 				_ui->checkBox_cameraProjection->isChecked() &&
-				clouds_out.size()==1 && clouds_out.begin()->first==0) // only for assembled point cloud
+				clouds_mesh.size()==1 && clouds_mesh.begin()->first==0) // only for assembled point cloud
 		{
 			_progressDialog->appendText(tr("Camera projection..."));
 			QApplication::processEvents();
 			uSleep(100);
 			QApplication::processEvents();
 
-			pcl::PCLPointCloud2::Ptr assembledCloud = clouds_out.begin()->second;
+			pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr assembledCloud = clouds_mesh.begin()->second;
 
 			std::map<int, Transform> cameraPoses;
 			std::map<int, std::vector<CameraModel> > cameraModels;
@@ -2818,7 +2828,7 @@ bool ExportCloudsDialog::getExportedClouds(
 			if(!cameraPoses.empty())
 			{
 				TexturingState texturingState(_progressDialog, true);
-				_progressDialog->setMaximumSteps(_progressDialog->maximumSteps() + (assembledCloud->height*assembledCloud->width)/10000+1 + cameraPoses.size());
+				_progressDialog->setMaximumSteps(_progressDialog->maximumSteps() + assembledCloud->size()/10000+1 + cameraPoses.size());
 				std::vector<float> roiRatios;
 				QStringList strings = _ui->lineEdit_camProjRoiRatios->text().split(' ');
 				if(!_ui->lineEdit_meshingTextureRoiRatios->text().isEmpty())
@@ -2900,17 +2910,17 @@ bool ExportCloudsDialog::getExportedClouds(
 				}
 
 				// color the cloud
-				UASSERT(pointToPixel.empty() || pointToPixel.size() == (assembledCloud->height*assembledCloud->width));
-				pcl::PCLPointCloud2::Ptr assembledCloudValidPoints;
-				// if(!_ui->checkBox_camProjKeepPointsNotSeenByCameras->isChecked())
-				// {
-				// 	assembledCloudValidPoints.reset(new pcl::PCLPointCloud2());
-				// 	assembledCloudValidPoints->resize((assembledCloud->height*assembledCloud->width));
-				// }
+				UASSERT(pointToPixel.empty() || pointToPixel.size() == assembledCloud->size());
+				pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr assembledCloudValidPoints;
+				if(!_ui->checkBox_camProjKeepPointsNotSeenByCameras->isChecked())
+				{
+					assembledCloudValidPoints.reset(new pcl::PointCloud<pcl::PointXYZRGBNormal>());
+					assembledCloudValidPoints->resize(assembledCloud->size());
+				}
 				if(_ui->comboBox_camProjExportCamera->isEnabled() &&
 				   _ui->comboBox_camProjExportCamera->currentIndex()>0)
 				{
-					textureVertexToPixels.resize((assembledCloud->height*assembledCloud->width));
+					textureVertexToPixels.resize(assembledCloud->size());
 				}
 
 				if(_ui->checkBox_camProjRecolorPoints->isChecked())
@@ -2954,19 +2964,19 @@ bool ExportCloudsDialog::getExportedClouds(
 									UASSERT(x>=0 && x<subImage.cols);
 									UASSERT(y>=0 && y<subImage.rows);
 
-// 									pcl::PointXYZRGBNormal & pt = assembledCloud->at(i);
-// 									if(subImage.type()==CV_8UC3)
-// 									{
-// 										cv::Vec3b bgr = subImage.at<cv::Vec3b>(y, x);
-// 										pt.b = bgr[0];
-// 										pt.g = bgr[1];
-// 										pt.r = bgr[2];
-// 									}
-// 									else
-// 									{
-// 										UASSERT(subImage.type()==CV_8UC1);
-// 										pt.r = pt.g = pt.b = subImage.at<unsigned char>(pointToPixel[i].second.y * subImage.rows, pointToPixel[i].second.x * subImage.cols);
-// 									}
+									pcl::PointXYZRGBNormal & pt = assembledCloud->at(i);
+									if(subImage.type()==CV_8UC3)
+									{
+										cv::Vec3b bgr = subImage.at<cv::Vec3b>(y, x);
+										pt.b = bgr[0];
+										pt.g = bgr[1];
+										pt.r = bgr[2];
+									}
+									else
+									{
+										UASSERT(subImage.type()==CV_8UC1);
+										pt.r = pt.g = pt.b = subImage.at<unsigned char>(pointToPixel[i].second.y * subImage.rows, pointToPixel[i].second.x * subImage.cols);
+									}
 								}
 							}
 						}
@@ -2981,57 +2991,57 @@ bool ExportCloudsDialog::getExportedClouds(
 				size_t oi = 0;
 				for(size_t i=0; i<pointToPixel.size() && !_canceled; ++i)
 				{
-// 					pcl::PointXYZRGBNormal & pt = assembledCloud->at(i);
-// 					if(pointToPixel[i].first.first <=0)
-// 					{
-// 						if(_ui->checkBox_camProjRecolorPoints->isChecked() && (_ui->comboBox_pointCloudSource->currentIndex() == 1) && !_scansHaveRGB)
-// 						{
-// 							pt.r = 255;
-// 							pt.g = 0;
-// 							pt.b = 0;
-// 							pt.a = 255;
-// 						}
-// 					}
-// 					else
-// 					{
-// 						int nodeID = pointToPixel[i].first.first;
-// 						int cameraIndex = pointToPixel[i].first.second;
-// 						int exportedId = nodeID;
-// 						if(_ui->comboBox_camProjExportCamera->currentIndex() == 2)
-// 						{
-// 							exportedId = cameraIndex+1;
-// 						}
-// 						else if(_ui->comboBox_camProjExportCamera->currentIndex() == 3)
-// 						{
-// 							UASSERT_MSG(cameraIndex<10, "Exporting cam id as NodeId+CamIndex is only supported when the number of cameras per node < 10.");
-// 							exportedId = nodeID*10 + cameraIndex;
-// 						}
+					pcl::PointXYZRGBNormal & pt = assembledCloud->at(i);
+					if(pointToPixel[i].first.first <=0)
+					{
+						if(_ui->checkBox_camProjRecolorPoints->isChecked() && (_ui->comboBox_pointCloudSource->currentIndex() == 1) && !_scansHaveRGB)
+						{
+							pt.r = 255;
+							pt.g = 0;
+							pt.b = 0;
+							pt.a = 255;
+						}
+					}
+					else
+					{
+						int nodeID = pointToPixel[i].first.first;
+						int cameraIndex = pointToPixel[i].first.second;
+						int exportedId = nodeID;
+						if(_ui->comboBox_camProjExportCamera->currentIndex() == 2)
+						{
+							exportedId = cameraIndex+1;
+						}
+						else if(_ui->comboBox_camProjExportCamera->currentIndex() == 3)
+						{
+							UASSERT_MSG(cameraIndex<10, "Exporting cam id as NodeId+CamIndex is only supported when the number of cameras per node < 10.");
+							exportedId = nodeID*10 + cameraIndex;
+						}
 
-// 						if(assembledCloudValidPoints.get())
-// 						{
-// 							if(!textureVertexToPixels.empty())
-// 							{
-// 								textureVertexToPixels[oi].insert(std::make_pair(exportedId, pointToPixel[i].second));
-// 							}
-// 							assembledCloudValidPoints->at(oi++) = pt;
-// 						}
-// 						else if(!textureVertexToPixels.empty())
-// 						{
-// 							textureVertexToPixels[i].insert(std::make_pair(exportedId, pointToPixel[i].second));
-// 						}
-// 					}
+						if(assembledCloudValidPoints.get())
+						{
+							if(!textureVertexToPixels.empty())
+							{
+								textureVertexToPixels[oi].insert(std::make_pair(exportedId, pointToPixel[i].second));
+							}
+							assembledCloudValidPoints->at(oi++) = pt;
+						}
+						else if(!textureVertexToPixels.empty())
+						{
+							textureVertexToPixels[i].insert(std::make_pair(exportedId, pointToPixel[i].second));
+						}
+					}
 				}
 
-// 				if(assembledCloudValidPoints.get())
-// 				{
-// 					assembledCloudValidPoints->resize(oi);
-// 					clouds_out.begin()->second = assembledCloudValidPoints;
+				if(assembledCloudValidPoints.get())
+				{
+					assembledCloudValidPoints->resize(oi);
+					clouds_mesh.begin()->second = assembledCloudValidPoints;
 
-// 					if(!textureVertexToPixels.empty())
-// 					{
-// 						textureVertexToPixels.resize(oi);
-// 					}
-// 				}
+					if(!textureVertexToPixels.empty())
+					{
+						textureVertexToPixels.resize(oi);
+					}
+				}
 
 				if(_canceled)
 				{
@@ -3828,13 +3838,13 @@ std::map<int, std::pair<pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr, pcl::Indic
 				}
 				else if((_ui->comboBox_pointCloudSource->currentIndex() == 2) && !pointCloud2.isEmpty())
 				{
-					// pointCloud2 = util3d::commonFiltering(pointCloud2,
-					// 		_ui->spinBox_decimation_scan->value(),
-					// 		_ui->doubleSpinBox_rangeMin->value(),
-					// 		_ui->doubleSpinBox_rangeMax->value(),
-					// 		_ui->doubleSpinBox_voxelSize_assembled->value(),
-					// 		_ui->spinBox_normalKSearch->value(),
-					// 		_ui->doubleSpinBox_normalRadiusSearch->value());
+					pointCloud2 = util3d::commonFiltering(pointCloud2,
+							_ui->spinBox_decimation_scan->value(),
+							_ui->doubleSpinBox_rangeMin->value(),
+							_ui->doubleSpinBox_rangeMax->value(),
+							_ui->doubleSpinBox_voxelSize_assembled->value(),
+							_ui->spinBox_normalKSearch->value(),
+							_ui->doubleSpinBox_normalRadiusSearch->value());
 
 					if(!pointCloud2.empty())
 					{
@@ -3964,14 +3974,13 @@ std::map<int, std::pair<pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr, pcl::Indic
 			}
 			else if((_ui->comboBox_pointCloudSource->currentIndex() == 2) && uContains(cachedPointCloud2s, iter->first))
 			{
-				PointCloud2 pointCloud2 = cachedPointCloud2s.at(iter->first);
-				// pointCloud2 = util3d::commonFiltering(cachedPointCloud2s.at(iter->first),
-				// 			_ui->spinBox_decimation_scan->value(),
-				// 			_ui->doubleSpinBox_rangeMin->value(),
-				// 			_ui->doubleSpinBox_rangeMax->value(),
-				// 			_ui->doubleSpinBox_voxelSize_assembled->value(),
-				// 			_ui->spinBox_normalKSearch->value(),
-				// 			_ui->doubleSpinBox_normalRadiusSearch->value());
+				PointCloud2 pointCloud2 = util3d::commonFiltering(cachedPointCloud2s.at(iter->first),
+							_ui->spinBox_decimation_scan->value(),
+							_ui->doubleSpinBox_rangeMin->value(),
+							_ui->doubleSpinBox_rangeMax->value(),
+							_ui->doubleSpinBox_voxelSize_assembled->value(),
+							_ui->spinBox_normalKSearch->value(),
+							_ui->doubleSpinBox_normalRadiusSearch->value());
 
 				if(!pointCloud2.empty())
 				{
@@ -4340,13 +4349,13 @@ std::map<int, std::pair<pcl::PCLPointCloud2::Ptr, pcl::IndicesPtr> > ExportCloud
 				}
 				else if((_ui->comboBox_pointCloudSource->currentIndex() == 2) && !pointCloud2.isEmpty())
 				{
-					// pointCloud2 = util3d::commonFiltering(pointCloud2,
-					// 		_ui->spinBox_decimation_scan->value(),
-					// 		_ui->doubleSpinBox_rangeMin->value(),
-					// 		_ui->doubleSpinBox_rangeMax->value(),
-					// 		_ui->doubleSpinBox_voxelSize_assembled->value(),
-					// 		_ui->spinBox_normalKSearch->value(),
-					// 		_ui->doubleSpinBox_normalRadiusSearch->value());
+					pointCloud2 = util3d::commonFiltering(pointCloud2,
+							_ui->spinBox_decimation_scan->value(),
+							_ui->doubleSpinBox_rangeMin->value(),
+							_ui->doubleSpinBox_rangeMax->value(),
+							_ui->doubleSpinBox_voxelSize_assembled->value(),
+							_ui->spinBox_normalKSearch->value(),
+							_ui->doubleSpinBox_normalRadiusSearch->value());
 
 					if(!pointCloud2.empty())
 					{
@@ -4482,14 +4491,13 @@ std::map<int, std::pair<pcl::PCLPointCloud2::Ptr, pcl::IndicesPtr> > ExportCloud
 			}
 			else if((_ui->comboBox_pointCloudSource->currentIndex() == 2) && uContains(cachedPointCloud2s, iter->first))
 			{
-				PointCloud2 pointCloud2 = cachedPointCloud2s.at(iter->first);
-				// pointCloud2 = util3d::commonFiltering(cachedPointCloud2s.at(iter->first),
-				// 			_ui->spinBox_decimation_scan->value(),
-				// 			_ui->doubleSpinBox_rangeMin->value(),
-				// 			_ui->doubleSpinBox_rangeMax->value(),
-				// 			_ui->doubleSpinBox_voxelSize_assembled->value(),
-				// 			_ui->spinBox_normalKSearch->value(),
-				// 			_ui->doubleSpinBox_normalRadiusSearch->value());
+				PointCloud2 pointCloud2 = util3d::commonFiltering(cachedPointCloud2s.at(iter->first),
+							_ui->spinBox_decimation_scan->value(),
+							_ui->doubleSpinBox_rangeMin->value(),
+							_ui->doubleSpinBox_rangeMax->value(),
+							_ui->doubleSpinBox_voxelSize_assembled->value(),
+							_ui->spinBox_normalKSearch->value(),
+							_ui->doubleSpinBox_normalRadiusSearch->value());
 
 				if(!pointCloud2.empty())
 				{

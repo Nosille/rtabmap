@@ -2313,7 +2313,7 @@ bool multiBandTexturing(
 	}
 
 	sfmData::SfMData sfmData;
-	pcl::PointCloud<pcl::PointXYZRGB> cloud2;
+	pcl::PointCloud<pcl::PointXYZRGB> cloud2(new pcl::PointCloud<pcl::PointXYZRGB>);
 	pcl::fromPCLPointCloud2(cloud, cloud2);
 	UASSERT(vertexToPixels.size() == cloud2.size());
 	UINFO("Input mesh: %d points %d polygons", (int)cloud2.size(), (int)polygons.size());
@@ -2861,7 +2861,7 @@ pcl::PCLPointCloud2::Ptr computeNormals(
 		float searchRadius,
 		const Eigen::Vector3f & viewPoint)
 {
-	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud;
+	pcl::PointCloud<pcl::PointXYZ>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZ>);
 	pcl::fromPCLPointCloud2(*cloud2, *cloud);
 
 	pcl::PointCloud<pcl::Normal>::Ptr normals = computeNormalsImpl<pcl::PointXYZ>(cloud, indices, searchK, searchRadius, viewPoint);
@@ -3562,10 +3562,21 @@ pcl::PCLPointCloud2::Ptr mls(
 		int dilationIterations)       // VOXEL_GRID_DILATION
 {
 	pcl::PCLPointCloud2::Ptr output(new pcl::PCLPointCloud2);
-	
-	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_pcl;
-	pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr cloud_normal;
-	pcl::fromPCLPointCloud2(*cloud, *cloud_pcl);
+	pcl::PCLPointCloud2::Ptr cloudWithNormals(new pcl::PCLPointCloud2);
+
+	// Add normals fields to input cloud
+	std::vector<pcl::PCLPointField> newFields;
+	pcl::PCLPointField fieldX, fieldY, fieldZ;
+	fieldX.name = "normal_x"; fieldX.datatype = 7; fieldX.count = 1; newFields.push_back(fieldX);
+	fieldY.name = "normal_y"; fieldY.datatype = 7; fieldY.count = 1; newFields.push_back(fieldY);
+	fieldZ.name = "normal_z"; fieldZ.datatype = 7; fieldZ.count = 1; newFields.push_back(fieldZ);
+
+	PointCloud2::appendPointCloud2Fields(cloud, cloudWithNormals, newFields, true);	
+
+	// Calculate normals
+	pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloud_pcl(new pcl::PointCloud<pcl::PointXYZRGB>);
+	pcl::PointCloud<pcl::PointXYZRGBNormal>::Ptr cloud_normal(new pcl::PointCloud<pcl::PointXYZRGBNormal>);
+	pcl::fromPCLPointCloud2(*cloudWithNormals, *cloud_pcl);
 	
 	cloud_normal = mls(cloud_pcl,
 			indices,
@@ -3579,7 +3590,6 @@ pcl::PCLPointCloud2::Ptr mls(
 			dilationIterations);
 
 	toPCLPointCloud2(*cloud_normal, *output);
-	pcl::concatenateFields(*cloud, *output, *output);
 
 	return output;
 }
@@ -3635,6 +3645,104 @@ LaserScan adjustNormalsToViewPoint(
 		}
 	}
 	return scan;
+}
+
+PointCloud2 adjustNormalsToViewPoint(
+		const PointCloud2 & pointCloud2,
+		const Eigen::Vector3f & viewpoint,
+		float groundNormalsUp)
+{
+	uint32_t offsetX, offsetY, offsetZ;
+	uint32_t offsetXn, offsetYn, offsetZn;
+
+	pcl::PCLPointCloud2 cloud = pointCloud2.cloud();
+	
+	for(unsigned int i=0; i<cloud.fields.size(); ++i)
+		{
+			if(cloud.fields[i].name.compare("x") == 0)
+			{
+				offsetX = cloud.fields[i].offset;
+				UASSERT(cloud.fields[i].datatype == 7);
+			}
+			else if(cloud.fields[i].name.compare("y") == 0)
+			{
+				offsetY = cloud.fields[i].offset;
+				UASSERT(cloud.fields[i].datatype == 7);				
+			}
+			else if(cloud.fields[i].name.compare("z") == 0)
+			{
+				offsetZ = cloud.fields[i].offset;
+				UASSERT(cloud.fields[i].datatype == 7);				
+			}
+			else if(cloud.fields[i].name.compare("normal_x") == 0)
+			{
+				offsetXn = cloud.fields[i].offset;
+				UASSERT(cloud.fields[i].datatype == 7);
+			}
+			else if(cloud.fields[i].name.compare("normal_y") == 0)
+			{
+				offsetYn = cloud.fields[i].offset;
+				UASSERT(cloud.fields[i].datatype == 7);				
+			}
+			else if(cloud.fields[i].name.compare("normal_z") == 0)
+			{
+				offsetZn = cloud.fields[i].offset;
+				UASSERT(cloud.fields[i].datatype == 7);				
+			}
+		}
+	
+	if(pointCloud2.size() && pointCloud2.hasNormals())
+	{
+	  for(uint32_t i=0; i < cloud.height; i++)
+      {
+        for(uint32_t j=0; j < cloud.width; j++)
+        {
+			uint32_t beginX = i * cloud.row_step + j * cloud.point_step + offsetX;
+			uint32_t beginY = i * cloud.row_step + j * cloud.point_step + offsetY;
+			uint32_t beginZ = i * cloud.row_step + j * cloud.point_step + offsetZ;
+			uint32_t beginXn = i * cloud.row_step + j * cloud.point_step + offsetXn;
+			uint32_t beginYn = i * cloud.row_step + j * cloud.point_step + offsetYn;
+			uint32_t beginZn = i * cloud.row_step + j * cloud.point_step + offsetZn;
+
+			float x = std::numeric_limits<float>::quiet_NaN();
+          	float y = std::numeric_limits<float>::quiet_NaN();
+          	float z = std::numeric_limits<float>::quiet_NaN();
+			float xn = std::numeric_limits<float>::quiet_NaN();
+          	float yn = std::numeric_limits<float>::quiet_NaN();
+          	float zn = std::numeric_limits<float>::quiet_NaN();
+
+			std::memcpy(&x, &cloud.data[beginX], sizeof(float));
+			std::memcpy(&y, &cloud.data[beginY], sizeof(float));
+			std::memcpy(&z, &cloud.data[beginZ], sizeof(float));
+			
+			std::memcpy(&xn, &cloud.data[beginXn], sizeof(float));
+			std::memcpy(&yn, &cloud.data[beginYn], sizeof(float));
+			std::memcpy(&zn, &cloud.data[beginZn], sizeof(float));
+
+			if(uIsFinite(x) && uIsFinite(y) && uIsFinite(z) && uIsFinite(xn) && uIsFinite(yn) && uIsFinite(zn))
+			{
+				Eigen::Vector3f v = viewpoint - Eigen::Vector3f(x, x, y);
+				Eigen::Vector3f n(xn, yn, zn);
+
+				float result = v.dot(n);
+				if(result < 0
+					|| (groundNormalsUp>0.0f && zn < -groundNormalsUp && z < viewpoint[2])) // some far velodyne rays on road can have normals toward ground
+				{
+					//reverse normal
+					xn *= -1.0f;
+					yn *= -1.0f;
+					zn *= -1.0f;
+
+					std::memcpy(&cloud.data[beginXn], &xn, sizeof(float));
+					std::memcpy(&cloud.data[beginYn], &yn, sizeof(float));
+					std::memcpy(&cloud.data[beginZn], &zn, sizeof(float));
+				}
+			}
+		}
+	  }
+	}
+
+	return pointCloud2;
 }
 
 template<typename PointNormalT>
@@ -3859,14 +3967,20 @@ void adjustNormalsToViewPoints(
 		pcl::PCLPointCloud2::Ptr & cloud2,
 		float groundNormalsUp)
 {
-	pcl::PointCloud<pcl::PointXYZ>::Ptr rawCloud;
+	pcl::PointCloud<pcl::PointXYZ>::Ptr rawCloud(new pcl::PointCloud<pcl::PointXYZ>);
 	pcl::fromPCLPointCloud2(*rawCloud2, *rawCloud);
 	
-	pcl::PointCloud<pcl::PointNormal>::Ptr normals;
-	adjustNormalsToViewPointsImpl<pcl::PointNormal>(poses, rawCloud, rawCameraIndices, normals, groundNormalsUp);
+	pcl::PointCloud<pcl::PointNormal>::Ptr normals(new pcl::PointCloud<pcl::PointNormal>);;
+	pcl::fromPCLPointCloud2(*cloud2, *normals);	
 
+	adjustNormalsToViewPointsImpl<pcl::PointNormal>(poses, rawCloud, rawCameraIndices, normals, groundNormalsUp);
 	pcl::PCLPointCloud2::Ptr normals2(new pcl::PCLPointCloud2);
 	pcl::toPCLPointCloud2(*normals, *normals2);
+
+	pcl::PCLPointCloud2::Ptr output(new pcl::PCLPointCloud2);
+	pcl::concatenateFields(*cloud2, *normals2, *output);
+
+	cloud2 = output;
 }
 
 void adjustNormalsToViewPoints(

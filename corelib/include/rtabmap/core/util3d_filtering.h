@@ -69,6 +69,16 @@ RTABMAP_DEPRECATED LaserScan RTABMAP_CORE_EXPORT commonFiltering(
 		float normalRadius,
 		bool forceGroundNormalsUp);
 
+PointCloud2 RTABMAP_CORE_EXPORT commonFiltering(
+		const PointCloud2 & pointCloud2,
+		int downsamplingStep,
+		float rangeMin = 0.0f,
+		float rangeMax = 0.0f,
+		float voxelSize = 0.0f,
+		int normalK = 0,
+		float normalRadius = 0.0f,
+		float groundNormalsUp = 0.0f);	
+
 LaserScan RTABMAP_CORE_EXPORT rangeFiltering(
 		const LaserScan & scan,
 		float rangeMin,

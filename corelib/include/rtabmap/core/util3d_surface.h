@@ -39,6 +39,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <rtabmap/core/CameraModel.h>
 #include <rtabmap/core/ProgressState.h>
 #include <rtabmap/core/LaserScan.h>
+#include <rtabmap/core/PointCloud2.h>
 #include <rtabmap/core/Version.h>
 #include <set>
 #include <list>
@@ -486,6 +487,10 @@ RTABMAP_DEPRECATED LaserScan RTABMAP_CORE_EXPORT adjustNormalsToViewPoint(
 		bool forceGroundNormalsUp);
 LaserScan RTABMAP_CORE_EXPORT adjustNormalsToViewPoint(
 		const LaserScan & scan,
+		const Eigen::Vector3f & viewpoint = Eigen::Vector3f(0,0,0),
+		float groundNormalsUp = 0.0f);
+PointCloud2 RTABMAP_CORE_EXPORT adjustNormalsToViewPoint(
+		const PointCloud2 & pointCloud2,
 		const Eigen::Vector3f & viewpoint = Eigen::Vector3f(0,0,0),
 		float groundNormalsUp = 0.0f);
 // Use version with groundNormalsUp as float. For forceGroundNormalsUp=true, set groundNormalsUp to 0.8f, otherwise set groundNormalsUp to 0.0f.
