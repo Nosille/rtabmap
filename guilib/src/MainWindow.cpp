@@ -3956,7 +3956,7 @@ std::pair<pcl::PointCloud<pcl::PointXYZRGB>::Ptr, pcl::IndicesPtr> MainWindow::c
 			{
 				outputPair.first = output;
 				outputPair.second = indices;
-				std::pair<pcl::PCLPointCloud2::Ptr, pcl::IndicesPtr> outputPair2;
+				std::pair<pcl::PCLPointCloud2::Ptr, pcl::IndicesPtr> outputPair2(new pcl::PCLPointCloud2, new pcl::Indices);
 				toPCLPointCloud2(*output, *outputPair2.first);
 				outputPair2.second = indices;
 				if(_preferencesDialog->isCloudsKept() && nodeId > 0)
