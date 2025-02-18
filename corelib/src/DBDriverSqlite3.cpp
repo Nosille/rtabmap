@@ -1335,6 +1335,11 @@ void DBDriverSqlite3::loadNodeDataQuery(std::list<Signature *> & signatures, boo
 		return;
 	}
 
+	if(uStrNumCmp(_version, "1.0.0") <= 0)
+	{
+		pointCloud2 = false;
+	}
+
 	if(_ppDb)
 	{
 		UTimer timer;
@@ -1363,7 +1368,7 @@ void DBDriverSqlite3::loadNodeDataQuery(std::list<Signature *> & signatures, boo
 					fields << ", ";
 				}
 			}
-			if(pointCloud2 && uStrNumCmp(_version, "1.0.0") >= 0)
+			if(pointCloud2)
 			{
 				fields << "pc2_info, pc2_fields, pc2_data";
 				if(userData || occupancyGrid)
